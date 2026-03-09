@@ -24,6 +24,10 @@ const Config = {
     palmStableFrames: 2,
     fistStableFrames: 2,
     adaptiveEnabled: true,
+    targetFps: 20,
+    modelComplexity: 0,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.7,
     debug: true
 };
 
@@ -34,6 +38,8 @@ class GesturePlugin {
         this.ctx = null;
         this.hands = null;
         this.camera = null;
+        this.isProcessingFrame = false;
+        this.lastFrameSentAt = 0;
         
         this.isAiming = false;
         this.isInCooldown = false;
@@ -114,10 +120,27 @@ class GesturePlugin {
 
     initMediaPipe() {
         this.hands = new window.Hands({ locateFile: (f) => `./vendor/mediapipe/hands/${f}` });
-        this.hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+        this.hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: Config.modelComplexity,
+            minDetectionConfidence: Config.minDetectionConfidence,
+            minTrackingConfidence: Config.minTrackingConfidence
+        });
         this.hands.onResults((res) => this.processHands(res));
         this.camera = new window.Camera(this.videoElement, {
-            onFrame: async () => { try { await this.hands.send({ image: this.videoElement }); } catch(e){} },
+            onFrame: async () => {
+                const now = performance.now();
+                const minInterval = 1000 / Math.max(1, Config.targetFps);
+                if (this.isProcessingFrame || (now - this.lastFrameSentAt) < minInterval) return;
+                this.isProcessingFrame = true;
+                this.lastFrameSentAt = now;
+                try {
+                    await this.hands.send({ image: this.videoElement });
+                } catch(e) {
+                } finally {
+                    this.isProcessingFrame = false;
+                }
+            },
             width: 640, height: 480
         });
         this.camera.start();
@@ -473,4 +496,7 @@ class GesturePlugin {
     }
 }
 
-window.addEventListener('load', () => { window.gesturePlugin = new GesturePlugin(); });
+window.addEventListener('load', () => {
+    if (window.gesturePlugin) return;
+    window.gesturePlugin = new GesturePlugin();
+});
