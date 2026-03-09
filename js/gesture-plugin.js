@@ -642,6 +642,7 @@ class GesturePlugin {
 }
 
 window.addEventListener('load', () => {
+    if (window.__USE_EXTERNAL_GESTURE_DAEMON) return;
     if (window.gesturePlugin) return;
     window.gesturePlugin = new GesturePlugin();
 });

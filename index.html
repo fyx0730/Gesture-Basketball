@@ -330,6 +330,14 @@
             };
         })();
     </script>
+    <script>
+        (function () {
+            var ua = (navigator.userAgent || "").toLowerCase();
+            var isPiLike = ua.indexOf("raspberry") >= 0 || ua.indexOf("aarch64") >= 0 || ua.indexOf("armv7") >= 0 || ua.indexOf("armv8") >= 0;
+            window.__USE_EXTERNAL_GESTURE_DAEMON = !!isPiLike;
+            window.__GESTURE_DAEMON_URL = "ws://127.0.0.1:8765";
+        })();
+    </script>
 
     <script>
         var version = "2.4.6"
@@ -1152,6 +1160,7 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
     </script>
 
 
+    <script src="js/gesture-daemon-bridge.js"></script>
     <script src="js/gesture-plugin.js"></script>
 </body>
 
