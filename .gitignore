@@ -1,0 +1,4 @@
+.tmp-mediapipe/
+.audio-download-tmp/
+__pycache__/
+v/1576154515838/external.js.backup

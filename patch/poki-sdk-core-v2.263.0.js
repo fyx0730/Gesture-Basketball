@@ -3788,10 +3788,10 @@
 						case 3:
 							return i = s.sent(), n = i.blocklist, r = i.country_exclusion, o = i.bidder_limitation, [2, {
 								blocklist: (null == n ? void 0 : n.split(/[\r\n]+/)) || [],
-								countryExclusion: (r.split(",") || []).map((function(e) {
+								countryExclusion: ("string" == typeof r ? r.split(",") : []).map((function(e) {
 									return e.toUpperCase()
 								})),
-								bidderLimitation: JSON.parse(o || "{}")
+								bidderLimitation: JSON.parse("string" == typeof o ? o : "{}")
 							}];
 						case 4:
 							return a = s.sent(), console.error(a), [2, {

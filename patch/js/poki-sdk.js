@@ -144,16 +144,14 @@ PokiSDK= function() {
   // ***** ADS CONTROL *****
   this.commercialBreak= function(){
     consoleLog("--fx--PokiSDK--commercialBreak--");
-    return new Promise((resolve, reject)=> {
-      loadJS("https://www.ubg235.com/ads/commercial.js", resolve);  
-    });
+    // Local/offline mode: skip remote ad script to avoid freezing gameplay.
+    return Promise.resolve(true);
   }
 
   this.rewardedBreak= function() {
    consoleLog("--fx--PokiSDK--rewardedBreak--");
-    return new Promise((resolve, reject)=> {
-      loadJS("https://www.ubg235.com/ads/rewarded.js", resolve);
-    }); 
+    // Local/offline mode: auto-resolve reward flow.
+    return Promise.resolve(true);
   }
 
   this.displayAd= function() {

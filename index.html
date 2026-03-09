@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta name="website" content="classroom6x.gitlab.io" />
@@ -12,6 +12,45 @@
         window.__FRVR = window.__FRVR || {};
 		window.__FRVR.startTime = Date.now();
 		window.LEGACY_COORD_SYSTEM = true;
+		
+		// Force Chinese language (Simplified Chinese)
+		window.__FRVR.locale = 'zh-Hans';
+		// Override browser language detection for Chinese
+		if(typeof navigator !== 'undefined') {
+			try {
+				Object.defineProperty(navigator, 'language', {
+					get: function() { return 'zh-CN'; },
+					configurable: true
+				});
+			} catch(e) {
+				// Fallback if defineProperty fails
+				console.log('Language override attempted');
+			}
+		}
+
+		// Avoid hard crashes when optional SDK audio assets fail to decode.
+		(function() {
+			var Ctx = window.AudioContext || window.webkitAudioContext;
+			if (!Ctx || !Ctx.prototype || typeof Ctx.prototype.decodeAudioData !== 'function') return;
+			var originalDecodeAudioData = Ctx.prototype.decodeAudioData;
+			Ctx.prototype.decodeAudioData = function(audioData, successCallback, errorCallback) {
+				try {
+					var result = originalDecodeAudioData.call(this, audioData, successCallback, errorCallback);
+					if (result && typeof result.catch === 'function') {
+						return result.catch(function(err) {
+							if (errorCallback) errorCallback(err);
+							console.warn('Audio decode failed, continuing without this clip:', err);
+							return null;
+						});
+					}
+					return result;
+				} catch (err) {
+					if (errorCallback) errorCallback(err);
+					console.warn('Audio decode threw synchronously, continuing:', err);
+					return Promise.resolve(null);
+				}
+			};
+		})();
 
     </script>
 
@@ -20,11 +59,11 @@
 
     <!--
 		/**
-		* @author Chris Benjaminsen http://chrisbenjaminsen.com/ @benjaminsen
+		* @author Chris Benjaminsen @benjaminsen
 		 */
 		/** @license
 			Basketball FRVR 2.4.6
-			More info at http://frvr.com
+			More info at FRVR
 
 			Copyright (c) 2013+ FRVR Limited
 
@@ -37,8 +76,8 @@
 			I see you are interested in the details of how this game was made!
 			It's written using a custom HTML5 engine built around PixiJS.
 
-			While I can't tell you more on the how, there is much more on the why to be find at 
-			http://blog.chrisbenjaminsen.com where I write frequent status updates on the games I build
+			While I can't tell you more on the how, there is much more on the why to be find at
+			the development blog where I write frequent status updates on the games I build
 			under the FRVR brand - - including a 100% honest track record of money earned and spend.
 
 			Hack on!
@@ -51,10 +90,10 @@
 
 			pixi.js - v2.2.3
 			Copyright (c) 2012-2014, Mat Groves
-			http://goodboydigital.com/
+			goodboydigital.com
 			pixi.js is licensed under the MIT License.
-			http://www.opensource.org/licenses/mit-license.php
-			Mat Groves http://matgroves.com/ @Doormat23
+			opensource.org/licenses/mit-license.php
+			Mat Groves matgroves.com @Doormat23
 		*/
 	-->
 
@@ -62,14 +101,14 @@
         content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Basketball FRVR">
+    <meta name="apple-mobile-web-app-title" content="篮球 FRVR">
     <meta name="theme-color" content="#202020">
     <meta name="HandheldFriendly" content="true" />
     <meta name="format-detection" content="telephone=no">
     <meta name="msapplication-tap-highlight" content="no">
     <meta name="google" content="notranslate" />
 
-    <link rel="canonical" href="https://basketball.frvr.com/" />
+    <link rel="canonical" href="./" />
 
     <link rel="apple-touch-icon" sizes="60x60" href="./v/1576154515838/i/web/icon60x60.png" />
     <link rel="apple-touch-icon" sizes="76x76" href="./v/1576154515838/i/web/icon76x76.png" />
@@ -78,27 +117,25 @@
     <link rel="apple-touch-icon" sizes="256x256" href="./v/1576154515838/i/web/icon256x256.png" />
     <link rel="apple-touch-icon" sizes="1024x1024" href="./v/1576154515838/i/web/icon1024x1024.png" />
 
-    <link rel="icon" type="image/png" href="./v/1576154515838/i/web/favicon.png" />
+    <link rel="icon" type="image/png" href="./v/1576154515838/i/web/favicon.svg" />
 
-    <link rel="me" href="https://twitter.com/FRVRGames">
+    <meta name="facebook_label" content="玩 Basketball FRVR - 免费篮球投篮游戏">
 
-    <meta name="facebook_label" content="Play Basketball FRVR - Free Basketball Hoop Shooter">
-
-    <meta property="og:title" content="Play Basketball FRVR" />
-    <meta property="og:description" content="Easy to learn yet frustrating to master basketball hoop shooter game." />
+    <meta property="og:title" content="玩 Basketball FRVR" />
+    <meta property="og:description" content="简单易学但难以精通的篮球投篮游戏。" />
     <meta property="og:site_name" content="Basketball FRVR" />
-    <meta property="og:url" content="https://basketball.frvr.com/" />
+    <meta property="og:url" content="./" />
     <meta property="og:type" content="game" />
-    <meta property="og:locale" content="en" />
-    <meta property="og:image" content="https://basketball.frvr.com/v/1576154515838/i/web/facebook01.png" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="./v/1576154515838/i/web/favicon.png" />
     <meta property="fb:app_id" content="982281415240060" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@FRVRGames" />
     <meta name="twitter:creator" content="@Benjaminsen" />
-    <meta name="twitter:title" content="Play Basketball FRVR - Free Basketball Hoop Shooter" />
-    <meta name="twitter:image" content="https://basketball.frvr.com/v/1576154515838/i/web/twitter01.png" />
-    <meta name="twitter:description" content="Easy to learn yet frustrating to master basketball hoop shooter game." />
+    <meta name="twitter:title" content="玩 Basketball FRVR - 免费篮球投篮游戏" />
+    <meta name="twitter:image" content="./v/1576154515838/i/web/favicon.png" />
+    <meta name="twitter:description" content="简单易学但难以精通的篮球投篮游戏。" />
 
     <meta name="twitter:app:name:iphone" content="Basketball FRVR" />
     <meta name="twitter:app:id:iphone" content="1185836177" />
@@ -108,10 +145,10 @@
     <meta name="twitter:app:name:googleplay" content="Basketball FRVR" />
     <meta name="twitter:app:id:googleplay" content="com.frvr.basketball" />
 
-    <meta name="description" content="Easy to learn yet frustrating to master basketball hoop shooter game.">
-    <meta name="keywords" content="Basketball, Hoops, Sports, Basket, Three point, alley-oop">
+    <meta name="description" content="简单易学但难以精通的篮球投篮游戏。">
+    <meta name="keywords" content="篮球, 投篮, 运动, 篮筐, 三分球, 扣篮">
 
-    <title>Basketball FRVR Unblocked - Basketball Hoop Shooter Unblocked - ClassRoom6x</title>
+    <title>手势篮球</title>
     <style>
         body {
             background: #c8c8c8;
@@ -322,8 +359,8 @@
 				scope._jsonData={};
 				;
 scope._jsonData['ab_tests'] = {};
-scope._jsonData['track-ga'] = {"gaIds":{"all":"UA-54081731-1"},"state":"{appId=app_id,appName=app_name,appVersion=app_version,metric1=play_session_count,dimension2=cohort,dimension4=play_session_id,dimension3=device_id,metric2=days_elapsed,metric3=days_played,dimension5=channel,dimension6=entry_point,dimension7=utm_string,dimension8=screen,dimension9=facebook_context,metric4=currency_amount,metric5=missions_completed,metric6=progression,metric7=games_played}","events":{"default":"name,,value,_params","options_change":"name,option_name:option_value","game_end":"name,level_id,game_duration","game_play_start,game_continue_used":"name,level_id","keepalive,new_user,mission_success":"name","coin_spent,tutorial_step_completed,session_start":"name,,value","game_loaded":"name,,loading_time","social_engage,engage":"'engage',engage_id:button_placement,1","play_with_friend":"name,,1","share,invite":"name,button_placement,1","cross_promotion_show":"name,button_placement,1","cross_promotion_click,cross_promotion_success,cross_promotion_failure":"name,target_game,1","ad_mandatory_request":"name,,value,{_merge=_params,dimension13=provider}","ad_mandatory_response":"name,ad_response,value,{_merge=_params,dimension13=provider}","ad_mandatory_show":"name,,value,{_merge=_params,dimension13=provider}","ad_mandatory_finish":"name,ad_result,value,{_merge=_params,dimension13=provider}","ad_mandatory_blocked":"name,,value,{_merge=_params,dimension13=provider}","ad_mandatory_pass":"name,,value,{_merge=_params,dimension13=provider}","ad_mandatory_throttled":"name,throttle_type,value,{_merge=_params,dimension13=provider}","ad_rewarded_request":"name,,value,{_merge=_params,dimension13=provider}","ad_rewarded_response":"name,ad_response,value,{_merge=_params,dimension13=provider}","ad_rewarded_show":"name,,value,{_merge=_params,dimension13=provider}","ad_rewarded_finish":"name,ad_result,value,{_merge=_params,dimension13=provider}","ad_rewarded_blocked":"name,,value,{_merge=_params,dimension13=provider}","ad_rewarded_pass":"name,,value,{_merge=_params,dimension13=provider}","ad_rewarded_throttled":"name,throttle_type,value,{_merge=_params,dimension13=provider}","chatbot_noshow,chatbot_show,chatbot_success,chatbot_issubscribed,chatbot_useraborted":"name,,","chatbot_error":"name,reason,"}};
-scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics310.js","currencies":"coin","itemtypes":"unknown","channelMapping":{"web_edge,web_firefox,web_opera,web_safari,web_chrome,":"web","web_safari_ios,web_chrome_ios":"web_ios","vkru,okru,twitch,hago":"other"},"customDimensions01":"web,web_ios,web_samsung,web_samsung_m4s,web_silk,chromeos,android,ios,rcs,samsung,facebook_instant,facebook_canvasweb,facebook_canvas,bixby,imessage,spil,kongregate,kik,twitter,other","events":{"new_user":"'addDesignEvent',name","game_loaded":"'addProgressionEvent','Complete',name,,,loading_time","keepalive":"'addDesignEvent',name","game_play_start":"'addProgressionEvent','Start',level_id","game_continue_used":"'addProgressionEvent','Start',level_id","game_end":"'addProgressionEvent','Complete',level_id,,,value","game_end-lose":"'addProgressionEvent','Fail',level_id,,,value","mission_success":"'addDesignEvent',name","ad_rewarded_request":"'addDesignEvent',name:screen","ad_rewarded_response":"'addDesignEvent',name:screen:ad_response","ad_rewarded_show":"'addDesignEvent',name:screen","ad_rewarded_finish":"'addDesignEvent',name:screen:ad_result,value","ad_mandatory_request":"'addDesignEvent',name:screen","ad_mandatory_response":"'addDesignEvent',name:screen:ad_response","ad_mandatory_show":"'addDesignEvent',name:screen","ad_mandatory_finish":"'addDesignEvent',name:screen:ad_result,value","coin_spent":"'addResourceEvent','Sink','coin',value,'unknown','consumed'","play_with_friend":"'addDesignEvent',name:screen,1","share,invite":"'addDesignEvent',name:button_placement,1","crosspromotion":"'addDesignEvent',name:screen","cross_promotion_show":"'addDesignEvent',name:button_placement,1","cross_promotion_success":"'addDesignEvent',name:target_game,1","engage":"'addDesignEvent',name:engage_id","iap_interaction":"'addDesignEvent',name:iap_id,value","iap_completed":"'addDesignEvent',name:iap_id,value","iap_failed":"'addDesignEvent',name:iap_id,value","tutorial_step_completed":"'addDesignEvent',name:value","options_change":"'addDesignEvent',option_name:option_value","social_engage":"'addDesignEvent','engage':engage_id:button_placement,1"}};
+scope._jsonData['track-ga'] = {"url":"","gaIds":{},"state":"","events":{"default":"name","keepalive":"name","new_user":"name","game_loaded":"name"}};
+scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channelMapping":{},"customDimensions01":"","events":{"default":"name","keepalive":"name","new_user":"name","game_loaded":"name"}};
 
 				scope.getNewCanvasObject = function(){
 					var cachedElement = relasedCanvasElements.pop();
@@ -541,7 +578,7 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 					progressbar = document.createElement('div');
 					preloader.appendChild(loadbar);
 					loadbar.appendChild(progressbar);
-					preloader.appendChild(canvas);
+					// preloader.appendChild(canvas); // Remove logo from preloader
 				}
 
 				var ow = 0
@@ -595,7 +632,8 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 						FBInstant.setLoadingProgress(100);
 						function handleSuccess() {
 							FBInstant.logEvent&&FBInstant.logEvent('NLPstartGameAsync');
-							var locale = false;
+							// Force Chinese Simplified locale
+							var locale = 'zh-Hans';
 
 							// If it's one of the supported languages then load it
 							if(locale && locale != 'en-US' && Host.Localize.languages.indexOf(locale) > -1) {
@@ -604,8 +642,15 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 									Host.emit('FBInstantPreloadComplete');
 								});
 							} else {
-								// Do english
-								Host.emit('FBInstantPreloadComplete');
+								// Try to load Chinese anyway
+								if(Host.Localize && Host.Localize.Load) {
+									Host.Localize.Load('zh-Hans', function(language, success) {
+										console.log('Localization loaded: ', language, success);
+										Host.emit('FBInstantPreloadComplete');
+									});
+								} else {
+									Host.emit('FBInstantPreloadComplete');
+								}
 							}
 						}
 						function handleError(err) {
@@ -678,12 +723,168 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 					}
 				}
 
+				// Try to load Chinese localization after game loads
+				var tryLoadChinese = function() {
+					if(Host && Host.Localize && Host.Localize.Load) {
+						Host.Localize.Load('zh-Hans', function(language, success) {
+							if(success) {
+								console.log('中文语言包加载成功:', language);
+							} else {
+								console.log('中文语言包加载失败，使用默认语言');
+							}
+						});
+					} else {
+						// Retry after a short delay
+						setTimeout(tryLoadChinese, 100);
+					}
+				};
+
+				// Runtime patch for local/offline mode:
+				// disable forced ad flows that pause/mute gameplay on first interaction.
+				var applyRuntimeNoAdsPatch = function() {
+					try {
+						if(window.PokiSDK) {
+							window.PokiSDK.commercialBreak = function() { return Promise.resolve(true); };
+							window.PokiSDK.rewardedBreak = function() { return Promise.resolve(true); };
+							window.PokiSDK.displayAd = function() {};
+							window.PokiSDK.destroyAd = function() {};
+							window.PokiSDK.gameplayStop = function() {};
+						}
+						if(window.XS) {
+							window.XS.muteAll = function() {};
+							window.XS.freeze = function() {};
+							window.XS.showInterstitial = function(done) {
+								if(typeof done === "function") done();
+							};
+							window.XS.showRewardAd = function(point, done) {
+								// Force "no continue" path after death.
+								if(typeof done === "function") done(false);
+							};
+							if(window.XS.Sound && window.XS.Sound.setMuted) window.XS.Sound.setMuted(false);
+							if(window.XS.Music && window.XS.Music.setMuted) window.XS.Music.setMuted(false);
+							if(window.XS.backgroundMusic && window.XS.backgroundMusic.play) {
+								try { window.XS.backgroundMusic.play(0, true); } catch(e) {}
+							}
+							// Analytics-offline safety: keep tracker callbacks from crashing.
+							if(window.XS.track) {
+								if(typeof window.XS.track.newUser !== "function") window.XS.track.newUser = function() {};
+								if(typeof window.XS.track.keepalive !== "function") window.XS.track.keepalive = function() {};
+								if(typeof window.XS.track.gameLoaded !== "function") window.XS.track.gameLoaded = function() {};
+							}
+						}
+						if(window.Social) {
+							window.Social.ShowTryAgainModal = function(opts, done) {
+								if(typeof done === "function") done(false);
+							};
+							if(window.Social.Instant) {
+								window.Social.Instant.ShowTryAgain = function(opts, done) {
+									if(typeof done === "function") done(false);
+								};
+							}
+						}
+
+						// Precisely hide only menu (top-left) and shop (top-right) controls.
+						var disableNode = function(node) {
+							if(!node) return;
+							try {
+								node.visible = false;
+								node.alpha = 0;
+								node.interactive = false;
+								node.buttonMode = false;
+							} catch(e) {}
+						};
+
+						// Remove previous DOM logo cover if it exists (now handled in game layer).
+						var oldCover = document.getElementById("frvr-backboard-logo-cover");
+						if(oldCover && oldCover.parentNode) oldCover.parentNode.removeChild(oldCover);
+
+						// Left-top menu button.
+						if(window.Sidebar && window.Sidebar.icon) {
+							disableNode(window.Sidebar.icon);
+						}
+
+						// Hide top-right SHOP text and arrow hint, keep coin counter.
+						var hideTopRightShopHint = function(root) {
+							if(!root || !root.children) return;
+							var walk = function(node) {
+								if(!node || !node.children) return;
+								for(var i=0;i<node.children.length;i++) {
+									var c = node.children[i];
+									try {
+										var x = (typeof c.x === "number") ? c.x : 0;
+										var y = (typeof c.y === "number") ? c.y : 0;
+										var width = window.innerWidth || 1024;
+										var inTopRight = x > width - 280 && y < 240;
+										if(inTopRight) {
+											var texUrl = "";
+											if(c._texture && c._texture.baseTexture && c._texture.baseTexture.imageUrl) texUrl = String(c._texture.baseTexture.imageUrl).toLowerCase();
+											if(c.texture && c.texture.baseTexture && c.texture.baseTexture.imageUrl) texUrl = String(c.texture.baseTexture.imageUrl).toLowerCase();
+
+											if(typeof c.text === "string") {
+												var t = c.text.trim().toLowerCase();
+												if(t === "shop" || t === "商店") disableNode(c);
+											}
+											if(typeof c._text === "string") {
+												var t2 = c._text.trim().toLowerCase();
+												if(t2 === "shop" || t2 === "商店") {
+													disableNode(c);
+												}
+											}
+											// Upward shop arrow icon beside SHOP label.
+											if(texUrl.indexOf("shoparrow") >= 0 || texUrl.indexOf("icon_shop") >= 0) {
+												disableNode(c);
+											}
+										}
+									} catch(e) {}
+									walk(c);
+								}
+							};
+							walk(root);
+						};
+						if(window.XS && window.XS.stageContainer) hideTopRightShopHint(window.XS.stageContainer);
+
+						// Game-over panel right arrow (mirrored shopbtn.svg) hard-hide.
+						var hideGameOverRightArrow = function(root) {
+							if(!root || !root.children) return;
+							var walk = function(node) {
+								if(!node || !node.children) return;
+								for(var i=0;i<node.children.length;i++) {
+									var c = node.children[i];
+									try {
+										var texUrl = "";
+										if(c._texture && c._texture.baseTexture && c._texture.baseTexture.imageUrl) texUrl = String(c._texture.baseTexture.imageUrl).toLowerCase();
+										if(c.texture && c.texture.baseTexture && c.texture.baseTexture.imageUrl) texUrl = String(c.texture.baseTexture.imageUrl).toLowerCase();
+										var sx = c.scale && typeof c.scale.x === "number" ? c.scale.x : 1;
+										var x = (typeof c.x === "number") ? c.x : 0;
+										var y = (typeof c.y === "number") ? c.y : 0;
+										var isRightArrowByTexture = texUrl.indexOf("shopbtn.svg") >= 0 && sx < 0 && x > 560 && y > 260 && y < 480;
+										if(isRightArrowByTexture) {
+											disableNode(c);
+										}
+									} catch(e) {}
+									walk(c);
+								}
+							};
+							walk(root);
+						};
+						if(window.XS && window.XS.stageContainer) hideGameOverRightArrow(window.XS.stageContainer);
+					} catch(e) {}
+				};
+				
 				var req = new XMLHttpRequest();
 				req.addEventListener('load', function(event){
 					var s = document.createElement("script");
 					//s.text rather than innerHTML for ie9
 					s.text = event.target.responseText;
 					document.documentElement.appendChild(s);
+					// Keep patching for entire session because game UI is rebuilt multiple times.
+					if(window.__frvrPatchTimer) clearInterval(window.__frvrPatchTimer);
+					window.__frvrPatchTimer = setInterval(function() {
+						applyRuntimeNoAdsPatch();
+					}, 200);
+					applyRuntimeNoAdsPatch();
+					// Try to load Chinese after external.js loads
+					setTimeout(tryLoadChinese, 500);
 				})
 
 				req.addEventListener("progress", function(event) {
@@ -733,75 +934,69 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 
     <div id="overlay"></div>
 
-    <content itemscope="" itemtype="https://schema.org/VideoGame">
+    <content itemscope="" itemtype="VideoGame">
         <h1 itemprop="name">Basketball FRVR</h1>
-        <meta itemprop="url" content="https://basketball.frvr.com/">
-        <div itemprop="author" itemscope itemtype="http://schema.org/Organization">
-            <p style="margin-top:0px"><span itemprop="name"><a itemprop="url" href="http://frvr.com/">By FRVR</a></span>
+        <meta itemprop="url" content="./">
+        <div itemprop="author" itemscope itemtype="Organization">
+            <p style="margin-top:0px"><span itemprop="name">篮球投篮游戏</span>
             </p>
         </div>
 
         <metadata>
             <!--<img itemprop="image" src="" data-original="./v/1576154515838/i/web/icon196x196.png"/>-->
-            <meta itemprop="playMode" content="SinglePlayer">
-            <p>Genre: <span itemprop="genre"></span></p>
-            <div itemscope itemtype="http://schema.org/AggregateRating" itemprop="aggregateRating">
-                <div>Average Rating: <b itemprop="ratingValue">4.8</b>/<b itemprop="bestRating">5</b></div>
+            <meta itemprop="playMode" content="单人游戏">
+            <p>类型：<span itemprop="genre"></span></p>
+            <div itemscope itemtype="AggregateRating" itemprop="aggregateRating">
+                <div>平均评分：<b itemprop="ratingValue">4.8</b>/<b itemprop="bestRating">5</b></div>
                 <meta itemprop="reviewCount" content="9427">
             </div>
             <link itemprop="applicationCategory" content="Game">
-            <link itemprop="applicationSubCategory" content="Board, Puzzle">
-            <span itemprop="offers" itemscope="" itemtype="http://schema.org/Offer">
+            <link itemprop="applicationSubCategory" content="棋盘, 益智">
+            <span itemprop="offers" itemscope="" itemtype="Offer">
 					<meta itemprop="price" content="$0">
 					<meta itemprop="priceCurrency" content="USD">
-					<link itemprop="availability" href="http://schema.org/InStock">
+					<meta itemprop="availability" content="InStock">
 				</span>
-            <meta itemprop="contentRating" content="Everyone">
-            <meta itemprop="playMode" content="SinglePlayer">
+            <meta itemprop="contentRating" content="所有人">
+            <meta itemprop="playMode" content="单人游戏">
         </metadata>
 
-        <p>Basketball FRVR is the best, free basketball hoop shooter for your Computer, Tablet, Phone, iPad, iPhone, and
-            iPod.</p>
+        <p>Basketball FRVR 是适用于您的电脑、平板、手机、iPad、iPhone 和 iPod 的最佳免费篮球投篮游戏。</p>
         <div itemprop="description">
-            <p>Practice your Basketball hoop shooting skills.</p>
-            <p>Basketball FRVR is a simple and easy to learn, yet amazingly fun Basketball hoop shooting game. Play for
-                as long as you can and get bonus points by not hitting the rim.</p>
-            <p>The game has no time limit, but the moving basket is a challenge for event experienced players.</p>
+            <p>练习您的篮球投篮技巧。</p>
+            <p>Basketball FRVR 是一款简单易学但非常有趣的篮球投篮游戏。尽可能长时间地游戏，通过不碰篮筐来获得奖励分数。</p>
+            <p>游戏没有时间限制，但移动的篮筐对有经验的玩家来说也是一个挑战。</p>
         </div>
-        <p>Basketball FRVR features:</p>
+        <p>Basketball FRVR 特色：</p>
         <ul>
-            <li>Easy fun controls</li>
-            <li>Great arcade physics</li>
-            <li>Smooth animations</li>
-            <li>Play unlimited free play</li>
-            <li>Beautiful graphics</li>
-            <li>Easy to understand game play</li>
-            <li>Works great on any mobile device with full iOS, Android and Windows Phone support</li>
-            <li>No need to install anything, works without Flash or Java</li>
-            <li>Amazing sound design and music</li>
+            <li>简单有趣的操作</li>
+            <li>出色的街机物理效果</li>
+            <li>流畅的动画</li>
+            <li>无限免费游戏</li>
+            <li>精美的画面</li>
+            <li>易于理解的游戏玩法</li>
+            <li>完美支持所有移动设备，包括 iOS、Android 和 Windows Phone</li>
+            <li>无需安装任何内容，无需 Flash 或 Java 即可运行</li>
+            <li>出色的音效设计和音乐</li>
         </ul>
-        <p>If you like a simple basketball challenge, this is the game for you!</p>
+        <p>如果您喜欢简单的篮球挑战，这就是适合您的游戏！</p>
 
-        <p><a href=".">Please enable JavaScript to play now!</a></p>
+        <p><a href=".">请启用 JavaScript 立即开始游戏！</a></p>
 
-        <h2>More information</h2>
+        <h2>更多信息</h2>
         <ul>
-            <li><a href="//frvr.com/">FRVR Website</a></li>
-            <li><a href="http://news.frvr.com">FRVR News</a></li>
-            <li><a href="//twitter.com/frvrgames">FRVR on Twitter</a></li>
-            <li><a href="//www.facebook.com/frvrgames">FRVR on Facebook</a></li>
-            <li><a href="//plus.google.com/+Frvrgames">FRVR on Google+</a></li>
+            <li><a href="./">本地离线版本</a></li>
         </ul>
-        <h2>More great games</h2>
+        <h2>更多精彩游戏</h2>
         <ul>
 
         </ul>
-        <h2>More platforms</h2>
+        <h2>更多平台</h2>
         <ul>
 
         </ul>
 
-        <p><a href="//frvr.com/">Always get the greatest new games on frvr.com</a></p>
+        <p>尽情享受篮球带来的快乐吧！</p>
     </content>
 
     <script>
@@ -873,41 +1068,19 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
 				appVersion: '2.4.6',
 			};
 			window.initGoogle = function(){
-				ga('set', window.gaAppInfo);
-				ga('create', 'UA-54081731-1', 'auto', window.gaAppInfo);
-
-				ga('create', 'UA-54081731-3', 'auto', 'game', window.gaAppInfo);
-
-				gax('require', 'displayfeatures');
-				gax('send', 'pageview', gaPath + location.search);
-				// Record native-ish "Promise" support
-				var eventCategory = 'basketball 2.4.6 246003 Promise Support';
-				gax('send', 'event', eventCategory, (typeof Promise === 'function') ? 'supported' : 'unsupported');
+				// Offline mode: analytics disabled.
 			}
     </script>
 
     <script>
-        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-			(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();;a=s.createElement(o),
-			m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-			})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-			ga(function() {
-				setTimeout(function(){
-					window.location.hash = ""
-					if (window.history && window.history.replaceState instanceof Function) {
-			  			window.history.replaceState({}, document.title,'./');
-					}
-				},5000)
-			});
-
-		window.gax=function() { 
-			ga.apply(this,arguments)
-
-			a = arguments; a[0] = "game."+a[0]  
-			ga.apply(this,a);
-
-		}
+		window.ga = function() {};
+		window.gax = function() {};
+		setTimeout(function(){
+			window.location.hash = "";
+			if (window.history && window.history.replaceState instanceof Function) {
+	  			window.history.replaceState({}, document.title,'./');
+			}
+		},5000);
     </script>
     <script>
         window.initGoogle();
@@ -960,6 +1133,7 @@ scope._jsonData['track-gma'] = {"url":"https://cdn.frvr.com/utils/gameanalytics3
     </script>
 
 
+    <script src="js/gesture-plugin.js"></script>
 </body>
 
 </html>

@@ -1,0 +1,46 @@
+# Format A: targetName|url
+# ding.mp3|https://basketball.frvr.com/assets/TimeUp-001.453d85a5.mp3
+#
+# Format B: url only (script will try to infer target from filename)
+# https://example.com/hit01.mp3
+#
+# Paste your collected links below:
+https://basketball.frvr.com/assets/TimeUp-001.453d85a5.mp3
+https://basketball.frvr.com/assets/TimeLeft_321.513b5a2b.mp3
+https://basketball.frvr.com/assets/city_completed.575f0627.mp3
+https://basketball.frvr.com/assets/city_building.dbc79178.mp3
+https://basketball.frvr.com/assets/coinpickup.0388488c.mp3
+https://basketball.frvr.com/assets/ding.50a30411.mp3
+https://basketball.frvr.com/assets/prize_won.ef5ca034.mp3
+https://basketball.frvr.com/assets/prize_claim.c0731537.mp3
+https://basketball.frvr.com/assets/final_whistle.0785fb16.mp3
+https://basketball.frvr.com/assets/powerup_focus_boost_off.0bb3f9d1.mp3
+https://basketball.frvr.com/assets/powerup_score_boost_off.77b54f70.mp3
+https://basketball.frvr.com/assets/powerup_coin_boost_off.dccb9924.mp3
+https://basketball.frvr.com/assets/powerup_aim_boost_off.fb0024ae.mp3
+https://basketball.frvr.com/assets/powerup_focus_boost_on.8303d72a.mp3
+https://basketball.frvr.com/assets/powerup_score_boost_on.4d5c16e3.mp3
+https://basketball.frvr.com/assets/powerup_coin_boost_on.a0337b0f.mp3
+https://basketball.frvr.com/assets/powerup_aim_boost_on.864cc500.mp3
+https://basketball.frvr.com/assets/powerup_bronze_ball_activate.c8421708.mp3
+https://basketball.frvr.com/assets/powerup_silver_ball_activate.94ca442b.mp3
+https://basketball.frvr.com/assets/powerup_gold_ball_activate.7d925cd7.mp3
+https://basketball.frvr.com/assets/clap5.d5e6d3e5.mp3
+https://basketball.frvr.com/assets/clap4.26ed9534.mp3
+https://basketball.frvr.com/assets/clap3.c2007be4.mp3
+https://basketball.frvr.com/assets/clap2.a08ae8aa.mp3
+https://basketball.frvr.com/assets/clap1.5f944314.mp3
+https://basketball.frvr.com/assets/awww2.1779c702.mp3
+https://basketball.frvr.com/assets/awww1.4bc1e235.mp3
+https://basketball.frvr.com/assets/net.8a99ef8d.mp3
+https://basketball.frvr.com/assets/netdirect.055b6f45.mp3
+https://basketball.frvr.com/assets/throw02.c6ed11de.mp3
+https://basketball.frvr.com/assets/throw01.d2028765.mp3
+https://basketball.frvr.com/assets/hit07.103ee7a3.mp3
+https://basketball.frvr.com/assets/hit06.107d176f.mp3
+https://basketball.frvr.com/assets/hit05.c8ce3074.mp3
+https://basketball.frvr.com/assets/hit04.2166c678.mp3
+https://basketball.frvr.com/assets/hit03.282cd1ca.mp3
+https://basketball.frvr.com/assets/hit02.6e179026.mp3
+https://basketball.frvr.com/assets/hit01.3b82d2b4.mp3
+https://basketball.frvr.com/assets/music.227f914c.mp3
