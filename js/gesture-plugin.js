@@ -159,7 +159,7 @@ class GesturePlugin {
 
     initMediaPipe() {
         this.hands = new window.Hands({ locateFile: (f) => `./vendor/mediapipe/hands/${f}` });
-        this.lowPower = /linux arm|aarch64|raspberry/i.test(navigator.userAgent || "");
+        this.lowPower = !!window.__FORCE_GAME_2D || /linux arm|aarch64|raspberry|cros/i.test(navigator.userAgent || "");
         this.hands.setOptions({
             maxNumHands: 1,
             modelComplexity: Config.modelComplexity,
@@ -642,7 +642,6 @@ class GesturePlugin {
 }
 
 window.addEventListener('load', () => {
-    if (window.__USE_EXTERNAL_GESTURE_DAEMON) return;
     if (window.gesturePlugin) return;
     window.gesturePlugin = new GesturePlugin();
 });

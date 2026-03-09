@@ -106,7 +106,6 @@ sudo bash scripts/deploy-pi-kiosk.sh
 - 配置桌面自动登录（如系统支持 `raspi-config`）
 - 配置 Chromium 全屏自启动
 - 默认启用摄像头权限自动放行（手势识别需要）
-- 部署并启用本地手势服务 `gesture-daemon.service`（WebSocket: `ws://127.0.0.1:8765`）
 
 可选参数示例：
 
@@ -119,12 +118,4 @@ sudo PROJECT_DIR=/home/pi/basketball-frvr \
      INSTALL_UNCLUTTER=1 \
      bash scripts/deploy-pi-kiosk.sh
 ```
-
-### 手势拆分架构（离线推荐）
-
-- 浏览器只负责游戏渲染；
-- `scripts/gesture-daemon.py` 在本机做手势识别；
-- 页面通过 `js/gesture-daemon-bridge.js` 从本地 WebSocket 接收 `aim/shoot` 事件。
-
-该方案可以显著降低树莓派上“摄像头启动后 WebGL 冲突导致游戏画面异常”的概率。
 

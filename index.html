@@ -318,8 +318,13 @@
         // force game canvas to use 2D renderer so MediaPipe can keep WebGL resources.
         (function () {
             var ua = (navigator.userAgent || "").toLowerCase();
+            var params = new URLSearchParams(window.location.search || "");
+            var forceGame2dParam = params.get("forceGame2d");
             var isPiLike = ua.indexOf("raspberry") >= 0 || ua.indexOf("aarch64") >= 0 || ua.indexOf("armv7") >= 0 || ua.indexOf("armv8") >= 0;
-            if (!isPiLike) return;
+            var isCrOsLike = ua.indexOf("cros") >= 0;
+            var forceGame2d = forceGame2dParam === "1" ? true : (forceGame2dParam === "0" ? false : (isPiLike || isCrOsLike));
+            window.__FORCE_GAME_2D = forceGame2d;
+            if (!forceGame2d) return;
             var originalGetContext = HTMLCanvasElement.prototype.getContext;
             HTMLCanvasElement.prototype.getContext = function (type) {
                 var t = (type || "").toLowerCase();
@@ -330,15 +335,6 @@
             };
         })();
     </script>
-    <script>
-        (function () {
-            var ua = (navigator.userAgent || "").toLowerCase();
-            var isPiLike = ua.indexOf("raspberry") >= 0 || ua.indexOf("aarch64") >= 0 || ua.indexOf("armv7") >= 0 || ua.indexOf("armv8") >= 0;
-            window.__USE_EXTERNAL_GESTURE_DAEMON = !!isPiLike;
-            window.__GESTURE_DAEMON_URL = "ws://127.0.0.1:8765";
-        })();
-    </script>
-
     <script>
         var version = "2.4.6"
 
@@ -1160,7 +1156,6 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
     </script>
 
 
-    <script src="js/gesture-daemon-bridge.js"></script>
     <script src="js/gesture-plugin.js"></script>
 </body>
 

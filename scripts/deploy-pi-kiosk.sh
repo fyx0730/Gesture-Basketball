@@ -72,7 +72,6 @@ fi
 echo "==> Installing required packages..."
 apt-get update -y
 apt-get install -y nginx rsync
-apt-get install -y python3 python3-venv python3-pip python3-opencv
 if apt-cache show chromium >/dev/null 2>&1; then
   apt-get install -y chromium
 elif apt-cache show chromium-browser >/dev/null 2>&1; then
@@ -91,15 +90,6 @@ elif command -v chromium-browser >/dev/null 2>&1; then
 else
   echo "ERROR: chromium/chromium-browser not found after install."
   exit 1
-fi
-
-echo "==> Installing gesture daemon Python environment..."
-if [[ -f "${PROJECT_DIR}/scripts/requirements-gesture-daemon.txt" ]]; then
-  su - "${TARGET_USER}" -c "
-    python3 -m venv \"${PROJECT_DIR}/.venv-gesture\"
-    \"${PROJECT_DIR}/.venv-gesture/bin/pip\" install --upgrade pip
-    \"${PROJECT_DIR}/.venv-gesture/bin/pip\" install -r \"${PROJECT_DIR}/scripts/requirements-gesture-daemon.txt\"
-  "
 fi
 
 echo "==> Publishing project files..."
@@ -164,29 +154,6 @@ nginx -t
 systemctl enable nginx
 systemctl restart nginx
 
-echo "==> Configuring gesture daemon service..."
-cat > /etc/systemd/system/gesture-daemon.service <<EOF
-[Unit]
-Description=Basketball FRVR Gesture Daemon
-After=network.target
-
-[Service]
-Type=simple
-User=${TARGET_USER}
-WorkingDirectory=${PROJECT_DIR}
-ExecStart=${PROJECT_DIR}/.venv-gesture/bin/python3 ${PROJECT_DIR}/scripts/gesture-daemon.py
-Restart=always
-RestartSec=2
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable gesture-daemon
-systemctl restart gesture-daemon
-
 echo "==> Enabling desktop autologin (best effort)..."
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true
@@ -234,9 +201,6 @@ echo "Done! Basketball FRVR kiosk deployed."
 echo "========================================"
 echo "URL: ${URL}"
 echo "Chromium: ${CHROMIUM_BIN}"
-echo "Gesture daemon:"
-echo "  - Service: gesture-daemon.service"
-echo "  - WS: ws://127.0.0.1:8765"
 echo "Autostart:"
 echo "  - ${AUTOSTART_FILE}"
 echo "  - ${AUTOSTART_DESKTOP_DIR}/basketball-kiosk.desktop"
