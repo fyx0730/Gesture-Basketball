@@ -33,8 +33,11 @@ const Config = {
     cameraHeight: 360,
     lowPowerCameraWidth: 320,
     lowPowerCameraHeight: 240,
+    ultraLiteCameraWidth: 256,
+    ultraLiteCameraHeight: 192,
     autoRecoverMs: 2000,
     maxWebGlRecoveries: 1,
+    ultraLiteTargetFps: 8,
     debug: true
 };
 
@@ -50,8 +53,12 @@ class GesturePlugin {
         this.isMediaPipeReady = false;
         this.recoverTimer = null;
         this.webglRecoveries = 0;
-        this.isGestureDisabled = false;
         this.statusLabel = null;
+        this.lowPower = false;
+        this.isUltraLiteMode = false;
+        this.currentFps = Config.targetFps;
+        this.manualLoopTimer = null;
+        this.mediaStream = null;
         
         this.isAiming = false;
         this.isInCooldown = false;
@@ -152,35 +159,81 @@ class GesturePlugin {
 
     initMediaPipe() {
         this.hands = new window.Hands({ locateFile: (f) => `./vendor/mediapipe/hands/${f}` });
+        this.lowPower = /linux arm|aarch64|raspberry/i.test(navigator.userAgent || "");
         this.hands.setOptions({
             maxNumHands: 1,
             modelComplexity: Config.modelComplexity,
             minDetectionConfidence: Config.minDetectionConfidence,
-            minTrackingConfidence: Config.minTrackingConfidence
+            minTrackingConfidence: Config.minTrackingConfidence,
+            useCpuInference: this.lowPower
         });
         this.hands.onResults((res) => this.processHands(res));
         this.isMediaPipeReady = true;
-        const lowPower = /linux arm|aarch64|raspberry/i.test(navigator.userAgent || "");
-        const camW = lowPower ? Config.lowPowerCameraWidth : Config.cameraWidth;
-        const camH = lowPower ? Config.lowPowerCameraHeight : Config.cameraHeight;
-        this.camera = new window.Camera(this.videoElement, {
-            onFrame: async () => {
-                const now = performance.now();
-                const minInterval = 1000 / Math.max(1, Config.targetFps);
-                if (!this.isMediaPipeReady || this.isProcessingFrame || (now - this.lastFrameSentAt) < minInterval) return;
+        if (this.lowPower) {
+            this.startManualLowPowerLoop(Config.lowPowerCameraWidth, Config.lowPowerCameraHeight);
+        } else {
+            this.camera = new window.Camera(this.videoElement, {
+                onFrame: async () => {
+                    const now = performance.now();
+                    const minInterval = 1000 / Math.max(1, this.currentFps);
+                    if (!this.isMediaPipeReady || this.isProcessingFrame || (now - this.lastFrameSentAt) < minInterval) return;
+                    this.isProcessingFrame = true;
+                    this.lastFrameSentAt = now;
+                    try {
+                        await this.hands.send({ image: this.videoElement });
+                    } catch(e) {
+                    } finally {
+                        this.isProcessingFrame = false;
+                    }
+                },
+                width: Config.cameraWidth, height: Config.cameraHeight
+            });
+            this.camera.start();
+        }
+        this.attachWebGlRecoveryHooks();
+    }
+
+    async startManualLowPowerLoop(width, height) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: width },
+                    height: { ideal: height },
+                    facingMode: 'user',
+                    frameRate: { ideal: this.currentFps, max: this.currentFps }
+                },
+                audio: false
+            });
+            this.mediaStream = stream;
+            this.videoElement.srcObject = stream;
+            await this.videoElement.play();
+            this.runManualFrameLoop();
+        } catch (e) {
+            if (this.statusLabel) {
+                this.statusLabel.textContent = '无法启动摄像头，请检查权限';
+                this.statusLabel.style.display = 'block';
+            }
+        }
+    }
+
+    runManualFrameLoop() {
+        if (this.manualLoopTimer) clearTimeout(this.manualLoopTimer);
+        const tick = async () => {
+            const now = performance.now();
+            const minInterval = 1000 / Math.max(1, this.currentFps);
+            if (this.isMediaPipeReady && !this.isProcessingFrame && (now - this.lastFrameSentAt) >= minInterval) {
                 this.isProcessingFrame = true;
                 this.lastFrameSentAt = now;
                 try {
                     await this.hands.send({ image: this.videoElement });
-                } catch(e) {
+                } catch (e) {
                 } finally {
                     this.isProcessingFrame = false;
                 }
-            },
-            width: camW, height: camH
-        });
-        this.camera.start();
-        this.attachWebGlRecoveryHooks();
+            }
+            this.manualLoopTimer = setTimeout(tick, minInterval);
+        };
+        tick();
     }
 
     attachWebGlRecoveryHooks() {
@@ -190,7 +243,7 @@ class GesturePlugin {
             try { e.preventDefault(); } catch(_) {}
             this.webglRecoveries += 1;
             if (this.webglRecoveries > Config.maxWebGlRecoveries) {
-                this.disableGestureEngine('检测到图形冲突，已自动关闭手势以保证游戏稳定');
+                this.enableUltraLiteMode();
                 return;
             }
             this.temporarilyPauseMediaPipe();
@@ -208,33 +261,34 @@ class GesturePlugin {
     }
 
     resumeMediaPipe() {
-        if (this.isGestureDisabled) return;
         this.isMediaPipeReady = true;
         this.recoverTimer = null;
     }
 
-    disableGestureEngine(message) {
-        this.isGestureDisabled = true;
-        this.isMediaPipeReady = false;
-        this.isProcessingFrame = false;
-        if (this.recoverTimer) {
-            clearTimeout(this.recoverTimer);
-            this.recoverTimer = null;
-        }
-        try {
-            if (this.camera && typeof this.camera.stop === 'function') this.camera.stop();
-        } catch(_) {}
-        try {
-            if (this.hands && typeof this.hands.close === 'function') this.hands.close();
-        } catch(_) {}
-        this.camera = null;
-        this.hands = null;
-        if (this.videoElement) this.videoElement.style.display = 'none';
-        if (this.canvasElement && this.ctx) this.ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+    async enableUltraLiteMode() {
+        if (this.isUltraLiteMode) return;
+        this.isUltraLiteMode = true;
+        this.currentFps = Config.ultraLiteTargetFps;
+        this.webglRecoveries = 0;
+        this.temporarilyPauseMediaPipe();
         if (this.statusLabel) {
-            this.statusLabel.textContent = message || '手势已关闭';
+            this.statusLabel.textContent = '已切换到手势超轻量模式';
             this.statusLabel.style.display = 'block';
         }
+        if (!this.lowPower) return;
+        try {
+            if (this.mediaStream) {
+                const tracks = this.mediaStream.getVideoTracks();
+                if (tracks && tracks[0] && tracks[0].applyConstraints) {
+                    await tracks[0].applyConstraints({
+                        width: { ideal: Config.ultraLiteCameraWidth },
+                        height: { ideal: Config.ultraLiteCameraHeight },
+                        frameRate: { ideal: Config.ultraLiteTargetFps, max: Config.ultraLiteTargetFps }
+                    });
+                }
+            }
+        } catch (_) {}
+        setTimeout(() => this.resumeMediaPipe(), Config.autoRecoverMs);
     }
 
     processHands(results) {
