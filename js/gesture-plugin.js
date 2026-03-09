@@ -34,6 +34,7 @@ const Config = {
     lowPowerCameraWidth: 320,
     lowPowerCameraHeight: 240,
     autoRecoverMs: 2000,
+    maxWebGlRecoveries: 1,
     debug: true
 };
 
@@ -48,6 +49,9 @@ class GesturePlugin {
         this.lastFrameSentAt = 0;
         this.isMediaPipeReady = false;
         this.recoverTimer = null;
+        this.webglRecoveries = 0;
+        this.isGestureDisabled = false;
+        this.statusLabel = null;
         
         this.isAiming = false;
         this.isInCooldown = false;
@@ -121,6 +125,22 @@ class GesturePlugin {
             pointerEvents: 'none'
         });
         document.body.appendChild(this.videoElement);
+
+        this.statusLabel = document.createElement('div');
+        Object.assign(this.statusLabel.style, {
+            position: 'fixed',
+            left: '20px',
+            bottom: '165px',
+            zIndex: '10002',
+            color: '#ffffff',
+            font: 'bold 14px Arial',
+            background: 'rgba(0,0,0,0.55)',
+            border: '1px solid rgba(0,251,255,0.55)',
+            borderRadius: '8px',
+            padding: '6px 10px',
+            display: 'none'
+        });
+        document.body.appendChild(this.statusLabel);
         
         const resize = () => {
             this.canvasElement.width = window.innerWidth;
@@ -168,6 +188,11 @@ class GesturePlugin {
         if (!canvas) return;
         canvas.addEventListener('webglcontextlost', (e) => {
             try { e.preventDefault(); } catch(_) {}
+            this.webglRecoveries += 1;
+            if (this.webglRecoveries > Config.maxWebGlRecoveries) {
+                this.disableGestureEngine('检测到图形冲突，已自动关闭手势以保证游戏稳定');
+                return;
+            }
             this.temporarilyPauseMediaPipe();
         }, { passive: false });
         canvas.addEventListener('webglcontextrestored', () => {
@@ -183,8 +208,33 @@ class GesturePlugin {
     }
 
     resumeMediaPipe() {
+        if (this.isGestureDisabled) return;
         this.isMediaPipeReady = true;
         this.recoverTimer = null;
+    }
+
+    disableGestureEngine(message) {
+        this.isGestureDisabled = true;
+        this.isMediaPipeReady = false;
+        this.isProcessingFrame = false;
+        if (this.recoverTimer) {
+            clearTimeout(this.recoverTimer);
+            this.recoverTimer = null;
+        }
+        try {
+            if (this.camera && typeof this.camera.stop === 'function') this.camera.stop();
+        } catch(_) {}
+        try {
+            if (this.hands && typeof this.hands.close === 'function') this.hands.close();
+        } catch(_) {}
+        this.camera = null;
+        this.hands = null;
+        if (this.videoElement) this.videoElement.style.display = 'none';
+        if (this.canvasElement && this.ctx) this.ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+        if (this.statusLabel) {
+            this.statusLabel.textContent = message || '手势已关闭';
+            this.statusLabel.style.display = 'block';
+        }
     }
 
     processHands(results) {
