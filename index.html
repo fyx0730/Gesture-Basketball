@@ -314,6 +314,24 @@
     </script>
 
     <script>
+        // Raspberry Pi compatibility:
+        // force game canvas to use 2D renderer so MediaPipe can keep WebGL resources.
+        (function () {
+            var ua = (navigator.userAgent || "").toLowerCase();
+            var isPiLike = ua.indexOf("raspberry") >= 0 || ua.indexOf("aarch64") >= 0 || ua.indexOf("armv7") >= 0 || ua.indexOf("armv8") >= 0;
+            if (!isPiLike) return;
+            var originalGetContext = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function (type) {
+                var t = (type || "").toLowerCase();
+                if (this && this.id === "gameCanvas" && (t === "webgl" || t === "webgl2" || t === "experimental-webgl")) {
+                    return null;
+                }
+                return originalGetContext.apply(this, arguments);
+            };
+        })();
+    </script>
+
+    <script>
         var version = "2.4.6"
 
 		var gaPath = '/basketball/' + version + '/';
