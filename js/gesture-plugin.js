@@ -28,6 +28,12 @@ const Config = {
     modelComplexity: 0,
     minDetectionConfidence: 0.7,
     minTrackingConfidence: 0.7,
+    startDelayMs: 2200,
+    cameraWidth: 480,
+    cameraHeight: 360,
+    lowPowerCameraWidth: 320,
+    lowPowerCameraHeight: 240,
+    autoRecoverMs: 2000,
     debug: true
 };
 
@@ -40,6 +46,8 @@ class GesturePlugin {
         this.camera = null;
         this.isProcessingFrame = false;
         this.lastFrameSentAt = 0;
+        this.isMediaPipeReady = false;
+        this.recoverTimer = null;
         
         this.isAiming = false;
         this.isInCooldown = false;
@@ -74,7 +82,11 @@ class GesturePlugin {
         
         this.gameCanvas = document.getElementById('gameCanvas');
         this.initUI();
-        this.loadScripts().then(() => this.initMediaPipe());
+        // On low-end devices (e.g. Raspberry Pi), delaying camera/MediaPipe startup
+        // avoids stealing GPU resources during the game's critical first render.
+        setTimeout(() => {
+            this.loadScripts().then(() => this.initMediaPipe());
+        }, Config.startDelayMs);
     }
 
     async loadScripts() {
@@ -127,11 +139,15 @@ class GesturePlugin {
             minTrackingConfidence: Config.minTrackingConfidence
         });
         this.hands.onResults((res) => this.processHands(res));
+        this.isMediaPipeReady = true;
+        const lowPower = /linux arm|aarch64|raspberry/i.test(navigator.userAgent || "");
+        const camW = lowPower ? Config.lowPowerCameraWidth : Config.cameraWidth;
+        const camH = lowPower ? Config.lowPowerCameraHeight : Config.cameraHeight;
         this.camera = new window.Camera(this.videoElement, {
             onFrame: async () => {
                 const now = performance.now();
                 const minInterval = 1000 / Math.max(1, Config.targetFps);
-                if (this.isProcessingFrame || (now - this.lastFrameSentAt) < minInterval) return;
+                if (!this.isMediaPipeReady || this.isProcessingFrame || (now - this.lastFrameSentAt) < minInterval) return;
                 this.isProcessingFrame = true;
                 this.lastFrameSentAt = now;
                 try {
@@ -141,9 +157,34 @@ class GesturePlugin {
                     this.isProcessingFrame = false;
                 }
             },
-            width: 640, height: 480
+            width: camW, height: camH
         });
         this.camera.start();
+        this.attachWebGlRecoveryHooks();
+    }
+
+    attachWebGlRecoveryHooks() {
+        const canvas = this.getGameCanvas();
+        if (!canvas) return;
+        canvas.addEventListener('webglcontextlost', (e) => {
+            try { e.preventDefault(); } catch(_) {}
+            this.temporarilyPauseMediaPipe();
+        }, { passive: false });
+        canvas.addEventListener('webglcontextrestored', () => {
+            this.resumeMediaPipe();
+        });
+    }
+
+    temporarilyPauseMediaPipe() {
+        this.isMediaPipeReady = false;
+        this.isProcessingFrame = false;
+        if (this.recoverTimer) clearTimeout(this.recoverTimer);
+        this.recoverTimer = setTimeout(() => this.resumeMediaPipe(), Config.autoRecoverMs);
+    }
+
+    resumeMediaPipe() {
+        this.isMediaPipeReady = true;
+        this.recoverTimer = null;
     }
 
     processHands(results) {
