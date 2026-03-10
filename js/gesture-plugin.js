@@ -16,15 +16,15 @@ const Config = {
     shotCooldown: 1800,
     armDelayMs: 35,        // 保持较快但略去抖
     minAimMovePx: 2,       // 轻微位移即可
-    firstShotGuardMs: 160, // 轻度首发保护
+    firstShotGuardMs: 80,  // 轻度首发保护
     fistFoldThreshold: 0.82,
     thumbFoldThreshold: 0.98,
     palmExtendThreshold: 1.55,
     palmThumbOpenThreshold: 1.35,
     palmStableFrames: 2,
-    fistStableFrames: 2,
+    fistStableFrames: 1,
     adaptiveEnabled: true,
-    targetFps: 20,
+    targetFps: 15,
     modelComplexity: 0,
     minDetectionConfidence: 0.7,
     minTrackingConfidence: 0.7,
@@ -59,6 +59,7 @@ class GesturePlugin {
         this.currentFps = Config.targetFps;
         this.manualLoopTimer = null;
         this.mediaStream = null;
+        this.isChromiumLike = false;
         
         this.isAiming = false;
         this.isInCooldown = false;
@@ -169,6 +170,11 @@ class GesturePlugin {
     initMediaPipe() {
         this.hands = new window.Hands({ locateFile: (f) => `./vendor/mediapipe/hands/${f}` });
         this.lowPower = !!window.__FORCE_GAME_2D || /linux arm|aarch64|raspberry|cros/i.test(navigator.userAgent || "");
+        this.isChromiumLike = /chrome|chromium|crios/i.test(navigator.userAgent || "");
+        if (this.lowPower && this.isChromiumLike) {
+            // Chromium on Pi is more sensitive to camera/inference pressure.
+            this.currentFps = Math.min(this.currentFps, 10);
+        }
         const showPreview = this.shouldShowCameraPreview();
         if (this.videoElement) this.videoElement.style.display = showPreview ? 'block' : 'none';
         if (this.statusLabel) this.statusLabel.style.bottom = showPreview ? '165px' : '20px';
@@ -182,7 +188,9 @@ class GesturePlugin {
         this.hands.onResults((res) => this.processHands(res));
         this.isMediaPipeReady = true;
         if (this.lowPower) {
-            this.startManualLowPowerLoop(Config.lowPowerCameraWidth, Config.lowPowerCameraHeight);
+            const lowW = this.isChromiumLike ? Config.ultraLiteCameraWidth : Config.lowPowerCameraWidth;
+            const lowH = this.isChromiumLike ? Config.ultraLiteCameraHeight : Config.lowPowerCameraHeight;
+            this.startManualLowPowerLoop(lowW, lowH);
         } else {
             this.camera = new window.Camera(this.videoElement, {
                 onFrame: async () => {
@@ -370,14 +378,12 @@ class GesturePlugin {
 
                 const canShoot = this.isAiming &&
                     this.armedByPalm &&
-                    !this.requireFistRelease &&
                     !this.fistLatched &&
                     fistConfirmed &&
                     !isPalm &&
                     aimElapsed >= this.dynamic.armDelayMs &&
                     aimElapsed >= Config.firstShotGuardMs &&
-                    (this.hasMovedEnough || aimElapsed > 420) &&
-                    this.fistFrames >= this.dynamic.fistStableFrames;
+                    (this.fistReleasedSinceAimStart || aimElapsed > 220);
 
                 if (canShoot) {
                     this.fistLatched = true;
