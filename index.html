@@ -322,7 +322,9 @@
             var forceGame2dParam = params.get("forceGame2d");
             var isPiLike = ua.indexOf("raspberry") >= 0 || ua.indexOf("aarch64") >= 0 || ua.indexOf("armv7") >= 0 || ua.indexOf("armv8") >= 0;
             var isCrOsLike = ua.indexOf("cros") >= 0;
-            var forceGame2d = forceGame2dParam === "1" ? true : (forceGame2dParam === "0" ? false : (isPiLike || isCrOsLike));
+            var forceGame2d = forceGame2dParam === "1"
+                ? true
+                : (forceGame2dParam === "0" ? false : (isPiLike || isCrOsLike));
             window.__FORCE_GAME_2D = forceGame2d;
             if (!forceGame2d) return;
             var originalGetContext = HTMLCanvasElement.prototype.getContext;
@@ -816,6 +818,18 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 								node.buttonMode = false;
 							} catch(e) {}
 						};
+						var disableInteractionOnly = function(node) {
+							if(!node) return;
+							try {
+								node.interactive = false;
+								node.buttonMode = false;
+								if(typeof node.removeAllListeners === "function") {
+									node.removeAllListeners("pointertap");
+									node.removeAllListeners("click");
+									node.removeAllListeners("tap");
+								}
+							} catch(e) {}
+						};
 
 						// Remove previous DOM logo cover if it exists (now handled in game layer).
 						var oldCover = document.getElementById("frvr-backboard-logo-cover");
@@ -842,6 +856,9 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 											var texUrl = "";
 											if(c._texture && c._texture.baseTexture && c._texture.baseTexture.imageUrl) texUrl = String(c._texture.baseTexture.imageUrl).toLowerCase();
 											if(c.texture && c.texture.baseTexture && c.texture.baseTexture.imageUrl) texUrl = String(c.texture.baseTexture.imageUrl).toLowerCase();
+
+											// Keep coin UI visible but fully non-clickable to prevent shop navigation.
+											disableInteractionOnly(c);
 
 											if(typeof c.text === "string") {
 												var t = c.text.trim().toLowerCase();
@@ -1154,7 +1171,6 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 				}
 			})();
     </script>
-
 
     <script src="js/gesture-plugin.js"></script>
 </body>

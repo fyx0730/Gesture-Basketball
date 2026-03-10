@@ -100,6 +100,15 @@ class GesturePlugin {
         }, Config.startDelayMs);
     }
 
+    shouldShowCameraPreview() {
+        const params = new URLSearchParams(window.location.search || "");
+        const showCameraParam = params.get('showCamera');
+        if (showCameraParam === '1') return true;
+        if (showCameraParam === '0') return false;
+        // Default: hide camera preview on low-power devices (Pi/ARM/forced 2D).
+        return !this.lowPower;
+    }
+
     async loadScripts() {
         const scripts = [
             './vendor/mediapipe/hands/hands.js',
@@ -160,6 +169,9 @@ class GesturePlugin {
     initMediaPipe() {
         this.hands = new window.Hands({ locateFile: (f) => `./vendor/mediapipe/hands/${f}` });
         this.lowPower = !!window.__FORCE_GAME_2D || /linux arm|aarch64|raspberry|cros/i.test(navigator.userAgent || "");
+        const showPreview = this.shouldShowCameraPreview();
+        if (this.videoElement) this.videoElement.style.display = showPreview ? 'block' : 'none';
+        if (this.statusLabel) this.statusLabel.style.bottom = showPreview ? '165px' : '20px';
         this.hands.setOptions({
             maxNumHands: 1,
             modelComplexity: Config.modelComplexity,

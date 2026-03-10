@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Raspberry Pi kiosk deploy for basketball-frvr (offline/local mode).
+# Raspberry Pi kiosk deploy for basketball-frvr (pure frontend mode).
 #
 # Usage:
 #   sudo bash scripts/deploy-pi-kiosk.sh

@@ -119,3 +119,21 @@ sudo PROJECT_DIR=/home/pi/basketball-frvr \
      bash scripts/deploy-pi-kiosk.sh
 ```
 
+## 本机一键开发启动（Mac/Linux）
+
+已提供脚本：`scripts/dev-start.sh`
+
+```bash
+bash scripts/dev-start.sh
+```
+
+默认会同时启动：
+
+- 本地静态服务：`http://127.0.0.1:8000`
+
+常用参数示例：
+
+```bash
+HTTP_PORT=8000 bash scripts/dev-start.sh
+```
+
