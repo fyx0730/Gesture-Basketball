@@ -338,6 +338,55 @@
         })();
     </script>
     <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search || "");
+            if (params.get("showRuntime") !== "1") return;
+
+            var node = document.createElement("div");
+            node.id = "runtime-status";
+            node.style.position = "fixed";
+            node.style.right = "12px";
+            node.style.bottom = "12px";
+            node.style.zIndex = "10000000";
+            node.style.background = "rgba(0,0,0,0.65)";
+            node.style.color = "#fff";
+            node.style.font = "12px monospace";
+            node.style.padding = "8px 10px";
+            node.style.borderRadius = "6px";
+            node.style.lineHeight = "1.45";
+            node.style.pointerEvents = "none";
+            node.style.whiteSpace = "pre";
+            node.textContent = "runtime: waiting...";
+
+            document.addEventListener("DOMContentLoaded", function () {
+                document.body.appendChild(node);
+            });
+
+            window.addEventListener("gesture-runtime-update", function (evt) {
+                var d = (evt && evt.detail) || {};
+                var diag = d.dispatchDiag || {};
+                node.textContent =
+                    "role=" + (d.runtimeRole || "hybrid")
+                    + " engine=" + (d.engine || "unknown")
+                    + " fps=" + (d.currentFps || "-")
+                    + " bus=" + (!!d.busReady)
+                    + " lowPower=" + (!!d.lowPower)
+                    + " force2d=" + (!!d.forceGame2d)
+                    + "\nshotDispatch=" + (d.shotDispatch || "-")
+                    + " phase=" + (diag.phase || "-")
+                    + "\nstart/move/end=" + (d.dispatchStartOk ?? "-") + "/" + (d.dispatchMoveOk ?? "-") + "/" + (d.dispatchEndOk ?? "-")
+                    + "\nconnected=" + (diag.targetConnected ?? "-")
+                    + " rectValid=" + (diag.rectValid ?? "-")
+                    + "\npointer/mouse/touch=" + (diag.pointerDispatches ?? 0) + "/" + (diag.mouseDispatches ?? 0) + "/" + (diag.touchDispatches ?? 0)
+                    + "\nlock(cooldown,release,latched)=" + (!!d.isInCooldown) + "," + (!!d.requireFistRelease) + "," + (!!d.fistLatched)
+                    + " requireOpen=" + (!!d.requireOpenAfterShot)
+                    + " pendingEdge=" + (!!d.pendingFistEdge)
+                    + " interrupted=" + (!!d.wasInterrupted)
+                    + " elapsedMs=" + (d.lockElapsedMs ?? "-");
+            });
+        })();
+    </script>
+    <script>
         var version = "2.4.6"
 
 		var gaPath = '/basketball/' + version + '/';

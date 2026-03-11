@@ -56,6 +56,21 @@ php -S localhost:8000
 - **Frame包装器**: `http://localhost:8000/frame.html`
 - **第三方集成页面**: `http://localhost:8000/ubg235.html`
 
+### BroadcastChannel 双页隔离模式（推荐 Pi 稳定性）
+
+- **页面 A（游戏接收端）**: `http://localhost:8000/index.html?runtimeRole=game`
+- **页面 B（摄像头识别端）**: `http://localhost:8000/camera.html?runtimeRole=camera`
+
+说明：
+
+- 两页必须同源（同协议/域名/端口）
+- 页面 B 通过 `BroadcastChannel("gesture_bus")` 发送 `shot` 事件
+- 页面 B 会额外发送 `aim` 状态（手势点位与抛物线参数）
+- 页面 A 在游戏页本地绘制瞄准点/抛物线提示，玩家无需看识别页
+- 页面 A 监听 `shot` 事件并注入游戏输入
+- 若 `BroadcastChannel` 在设备浏览器不稳定，会自动回退到 `localStorage` 跨页消息通道
+- 保留原单页模式：`runtimeRole=hybrid`（默认）
+
 ## 项目结构
 
 ```

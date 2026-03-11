@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手势摄像头进程</title>
+    <style>
+        body {
+            margin: 0;
+            background: #05070a;
+            color: #d7e5f2;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        .hint {
+            position: fixed;
+            right: 12px;
+            top: 12px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(0, 251, 255, 0.35);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 320px;
+        }
+    </style>
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search || "");
+            if (!params.get("role") && !params.get("runtimeRole")) params.set("runtimeRole", "camera");
+            if (!params.get("cameraPreview")) params.set("cameraPreview", "0");
+            if (!params.get("forceGame2d")) params.set("forceGame2d", "1");
+            var next = window.location.pathname + "?" + params.toString() + window.location.hash;
+            if (next !== (window.location.pathname + window.location.search + window.location.hash)) {
+                window.history.replaceState({}, "", next);
+            }
+        })();
+    </script>
+</head>
+<body>
+    <div class="hint">
+        camera 进程: 仅采集摄像头并通过 BroadcastChannel 发送 shot 事件。<br>
+        请同时打开游戏页: <code>index.html?runtimeRole=game</code>
+    </div>
+    <script src="js/gesture-plugin.js"></script>
+</body>
+</html>
