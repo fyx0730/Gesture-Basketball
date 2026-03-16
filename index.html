@@ -97,6 +97,7 @@
 		*/
 	-->
 
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;">
     <meta name="viewport"
         content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -312,7 +313,164 @@
     <script>
         window.__antialias = false
     </script>
-
+    <script>
+        (function() {
+            var noAdConfig = JSON.stringify({
+                adConfig: { showBanner: false, showInterstitial: false, interstitialChance: 0, interstitialTimeout: 999999, providers: [] },
+                crosspromoteConfig: []
+            });
+            var isConfigUrl = function(u) {
+                u = (u || '').toString();
+                return u.indexOf('cdn.frvr.com/config/basketball') >= 0 || u.indexOf('bucket.frvr.com/config') >= 0;
+            };
+            var isAdsUrl = function(s) {
+                s = (s || '').toString().toLowerCase();
+                return s.indexOf('xs-ads') >= 0 || s.indexOf('ads.js') >= 0 || s.indexOf('xc.frvr.com') >= 0
+                    || (s.indexOf('cdn.frvr.com') >= 0 && s.indexOf('/ads/') >= 0);
+            };
+            var origFetch = typeof window.fetch === 'function' ? window.fetch : null;
+            if (origFetch) window.fetch = function(url, opts) {
+                var u = (typeof url === 'string' ? url : (url && url.url ? url.url : ''));
+                if (isConfigUrl(u)) {
+                    return Promise.resolve({ ok: true, json: function() { return Promise.resolve(JSON.parse(noAdConfig)); }, text: function() { return Promise.resolve(noAdConfig); } });
+                }
+                if (isAdsUrl(u)) {
+                    return Promise.resolve({ ok: true, text: function() { return Promise.resolve('//'); }, json: function() { return Promise.resolve({}); } });
+                }
+                return origFetch.apply(this, arguments);
+            };
+            var origXHROpen = XMLHttpRequest.prototype.open;
+            var origXHRSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._url = url;
+                return origXHROpen.apply(this, arguments);
+            };
+            XMLHttpRequest.prototype.send = function() {
+                var x = this;
+                if (isConfigUrl(x._url)) {
+                    var parsed = JSON.parse(noAdConfig);
+                    setTimeout(function() {
+                        Object.defineProperty(x, 'responseText', { value: noAdConfig, configurable: true });
+                        Object.defineProperty(x, 'response', { value: x.responseType === 'json' ? parsed : noAdConfig, configurable: true });
+                        Object.defineProperty(x, 'status', { value: 200, configurable: true });
+                        Object.defineProperty(x, 'readyState', { value: 4, configurable: true });
+                        if (x.onreadystatechange) x.onreadystatechange();
+                        x.dispatchEvent(new Event('readystatechange'));
+                        x.dispatchEvent(new Event('load'));
+                    }, 0);
+                    return;
+                }
+                if (isAdsUrl(x._url)) {
+                    setTimeout(function() {
+                        Object.defineProperty(x, 'responseText', { value: '//', configurable: true });
+                        Object.defineProperty(x, 'response', { value: x.responseType === 'json' ? {} : '//', configurable: true });
+                        Object.defineProperty(x, 'status', { value: 200, configurable: true });
+                        Object.defineProperty(x, 'readyState', { value: 4, configurable: true });
+                        if (x.onreadystatechange) x.onreadystatechange();
+                        x.dispatchEvent(new Event('readystatechange'));
+                        x.dispatchEvent(new Event('load'));
+                    }, 0);
+                    return;
+                }
+                return origXHRSend.apply(this, arguments);
+            };
+            var noopSrc = 'data:text/javascript,//';
+            var neuterAdsInHtml = function(html) {
+                if (typeof html !== 'string') return html;
+                return html.replace(/<script([^>]*\ssrc\s*=\s*["'])([^"']*)(["'][^>]*)>/gi, function(m, before, url, after) {
+                    return isAdsUrl(url) ? '<script' + before + noopSrc + after + '>' : m;
+                });
+            };
+            var origAppendChild = Node.prototype.appendChild;
+            Node.prototype.appendChild = function(child) {
+                if (child && child.nodeName === 'SCRIPT' && isAdsUrl(child.src || child.getAttribute('src'))) {
+                    child.src = noopSrc;
+                }
+                return origAppendChild.apply(this, arguments);
+            };
+            var origInsertBefore = Node.prototype.insertBefore;
+            Node.prototype.insertBefore = function(child, ref) {
+                if (child && child.nodeName === 'SCRIPT' && isAdsUrl(child.src || child.getAttribute('src'))) {
+                    child.src = noopSrc;
+                }
+                return origInsertBefore.apply(this, arguments);
+            };
+            var blockScriptOnAdd = function(n) {
+                if (n && n.nodeName === 'SCRIPT' && isAdsUrl(n.src || n.getAttribute('src'))) n.src = noopSrc;
+            };
+            if (typeof Element.prototype.append === 'function') {
+                var origAppend = Element.prototype.append;
+                Element.prototype.append = function() {
+                    for (var i = 0; i < arguments.length; i++) blockScriptOnAdd(arguments[i]);
+                    return origAppend.apply(this, arguments);
+                };
+            }
+            if (typeof Element.prototype.prepend === 'function') {
+                var origPrepend = Element.prototype.prepend;
+                Element.prototype.prepend = function() {
+                    for (var i = 0; i < arguments.length; i++) blockScriptOnAdd(arguments[i]);
+                    return origPrepend.apply(this, arguments);
+                };
+            }
+            try {
+                var scriptProto = HTMLScriptElement.prototype;
+                var srcDesc = Object.getOwnPropertyDescriptor(scriptProto, 'src');
+                if (srcDesc && srcDesc.set) {
+                    var origSrcSet = srcDesc.set;
+                    Object.defineProperty(scriptProto, 'src', {
+                        set: function(v) {
+                            if (isAdsUrl(v)) v = noopSrc;
+                            origSrcSet.call(this, v);
+                        },
+                        get: srcDesc.get,
+                        configurable: true,
+                        enumerable: srcDesc.enumerable !== false
+                    });
+                }
+                var origSetAttr = Element.prototype.setAttribute;
+                Element.prototype.setAttribute = function(name, value) {
+                    if (this.nodeName === 'SCRIPT' && (name === 'src' || name === 'SRC') && isAdsUrl(value)) value = noopSrc;
+                    return origSetAttr.call(this, name, value);
+                };
+                for (var proto of [Element.prototype, HTMLElement.prototype]) {
+                    if (!proto) continue;
+                    var innerDesc = Object.getOwnPropertyDescriptor(proto, 'innerHTML');
+                    if (innerDesc && innerDesc.set) {
+                        var origInnerSet = innerDesc.set;
+                        Object.defineProperty(proto, 'innerHTML', {
+                            set: function(v) { origInnerSet.call(this, neuterAdsInHtml(v)); },
+                            get: innerDesc.get,
+                            configurable: true,
+                            enumerable: innerDesc.enumerable !== false
+                        });
+                        break;
+                    }
+                }
+                var origInsertAdjacent = Element.prototype.insertAdjacentHTML;
+                if (origInsertAdjacent) {
+                    Element.prototype.insertAdjacentHTML = function(where, html) {
+                        return origInsertAdjacent.call(this, where, neuterAdsInHtml(html));
+                    };
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <script>
+        (function() {
+            var p = function() {
+                try {
+                    if (window.PokiSDK) {
+                        window.PokiSDK.commercialBreak = function() { return Promise.resolve(true); };
+                        window.PokiSDK.rewardedBreak = function() { return Promise.resolve(true); };
+                        window.PokiSDK.displayAd = function() {};
+                        window.PokiSDK.gameplayStop = function() {};
+                    }
+                } catch(e) {}
+            };
+            p();
+            for (var i = 0; i < 100; i++) setTimeout(p, i * 50);
+        })();
+    </script>
     <script>
         // Raspberry Pi compatibility:
         // force game canvas to use 2D renderer so MediaPipe can keep WebGL resources.
@@ -813,8 +971,7 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 					}
 				};
 
-				// Runtime patch for local/offline mode:
-				// disable forced ad flows that pause/mute gameplay on first interaction.
+				// ── Lightweight SDK stubs (safe to repeat) ───────────────────────────
 				var applyRuntimeNoAdsPatch = function() {
 					try {
 						if(window.PokiSDK) {
@@ -824,27 +981,27 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 							window.PokiSDK.destroyAd = function() {};
 							window.PokiSDK.gameplayStop = function() {};
 						}
+						if(window.gdsdk && typeof window.gdsdk.showAd === 'function') {
+							window.gdsdk.showAd = function() {
+								if(window.GD_OPTIONS && window.GD_OPTIONS.onEvent) {
+									window.GD_OPTIONS.onEvent({ name: 'SDK_GAME_START', message: 'Ad skipped' });
+								}
+								return Promise.resolve(true);
+							};
+						}
 						if(window.XS) {
+							if(window.XS.is) window.XS.is.poki = false;
 							window.XS.muteAll = function() {};
 							window.XS.freeze = function() {};
 							window.XS.showInterstitial = function(done) {
 								if(typeof done === "function") done();
 							};
+							window.XS.showInterstitialAd = function(a,b,c) {
+								if(typeof a === "function") a();
+							};
 							window.XS.showRewardAd = function(point, done) {
-								// Force "no continue" path after death.
 								if(typeof done === "function") done(false);
 							};
-							if(window.XS.Sound && window.XS.Sound.setMuted) window.XS.Sound.setMuted(false);
-							if(window.XS.Music && window.XS.Music.setMuted) window.XS.Music.setMuted(false);
-							if(window.XS.backgroundMusic && window.XS.backgroundMusic.play) {
-								try { window.XS.backgroundMusic.play(0, true); } catch(e) {}
-							}
-							// Analytics-offline safety: keep tracker callbacks from crashing.
-							if(window.XS.track) {
-								if(typeof window.XS.track.newUser !== "function") window.XS.track.newUser = function() {};
-								if(typeof window.XS.track.keepalive !== "function") window.XS.track.keepalive = function() {};
-								if(typeof window.XS.track.gameLoaded !== "function") window.XS.track.gameLoaded = function() {};
-							}
 						}
 						if(window.Social) {
 							window.Social.ShowTryAgainModal = function(opts, done) {
@@ -856,8 +1013,29 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 								};
 							}
 						}
+					} catch(e) {}
+				};
 
-						// Precisely hide only menu (top-left) and shop (top-right) controls.
+				// ── One-time UI cleanup (runs once after game loads) ──────────────────
+				// Separating the expensive display-tree walks from the 200ms interval
+				// eliminates periodic stutters and prevents accidental interactive-flag
+				// corruption that causes permanent input lockout.
+				var applyOneTimeUICleanup = function() {
+					try {
+						if(window.XS && window.XS.Sound && window.XS.Sound.setMuted) window.XS.Sound.setMuted(false);
+						if(window.XS && window.XS.Music && window.XS.Music.setMuted) window.XS.Music.setMuted(false);
+						if(window.XS && window.XS.backgroundMusic && window.XS.backgroundMusic.play) {
+							try { window.XS.backgroundMusic.play(0, true); } catch(e) {}
+						}
+						if(window.XS && window.XS.track) {
+							if(typeof window.XS.track.newUser !== "function") window.XS.track.newUser = function() {};
+							if(typeof window.XS.track.keepalive !== "function") window.XS.track.keepalive = function() {};
+							if(typeof window.XS.track.gameLoaded !== "function") window.XS.track.gameLoaded = function() {};
+						}
+
+						var oldCover = document.getElementById("frvr-backboard-logo-cover");
+						if(oldCover && oldCover.parentNode) oldCover.parentNode.removeChild(oldCover);
+
 						var disableNode = function(node) {
 							if(!node) return;
 							try {
@@ -867,73 +1045,14 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 								node.buttonMode = false;
 							} catch(e) {}
 						};
-						var disableInteractionOnly = function(node) {
-							if(!node) return;
-							try {
-								node.interactive = false;
-								node.buttonMode = false;
-								if(typeof node.removeAllListeners === "function") {
-									node.removeAllListeners("pointertap");
-									node.removeAllListeners("click");
-									node.removeAllListeners("tap");
-								}
-							} catch(e) {}
-						};
 
-						// Remove previous DOM logo cover if it exists (now handled in game layer).
-						var oldCover = document.getElementById("frvr-backboard-logo-cover");
-						if(oldCover && oldCover.parentNode) oldCover.parentNode.removeChild(oldCover);
-
-						// Left-top menu button.
 						if(window.Sidebar && window.Sidebar.icon) {
 							disableNode(window.Sidebar.icon);
 						}
 
-						// Hide top-right SHOP text and arrow hint, keep coin counter.
-						var hideTopRightShopHint = function(root) {
-							if(!root || !root.children) return;
-							var walk = function(node) {
-								if(!node || !node.children) return;
-								for(var i=0;i<node.children.length;i++) {
-									var c = node.children[i];
-									try {
-										var x = (typeof c.x === "number") ? c.x : 0;
-										var y = (typeof c.y === "number") ? c.y : 0;
-										var width = window.innerWidth || 1024;
-										var inTopRight = x > width - 280 && y < 240;
-										if(inTopRight) {
-											var texUrl = "";
-											if(c._texture && c._texture.baseTexture && c._texture.baseTexture.imageUrl) texUrl = String(c._texture.baseTexture.imageUrl).toLowerCase();
-											if(c.texture && c.texture.baseTexture && c.texture.baseTexture.imageUrl) texUrl = String(c.texture.baseTexture.imageUrl).toLowerCase();
-
-											// Keep coin UI visible but fully non-clickable to prevent shop navigation.
-											disableInteractionOnly(c);
-
-											if(typeof c.text === "string") {
-												var t = c.text.trim().toLowerCase();
-												if(t === "shop" || t === "商店") disableNode(c);
-											}
-											if(typeof c._text === "string") {
-												var t2 = c._text.trim().toLowerCase();
-												if(t2 === "shop" || t2 === "商店") {
-													disableNode(c);
-												}
-											}
-											// Upward shop arrow icon beside SHOP label.
-											if(texUrl.indexOf("shoparrow") >= 0 || texUrl.indexOf("icon_shop") >= 0) {
-												disableNode(c);
-											}
-										}
-									} catch(e) {}
-									walk(c);
-								}
-							};
-							walk(root);
-						};
-						if(window.XS && window.XS.stageContainer) hideTopRightShopHint(window.XS.stageContainer);
-
-						// Game-over panel right arrow (mirrored shopbtn.svg) hard-hide.
-						var hideGameOverRightArrow = function(root) {
+						// Hide SHOP text and arrow by texture/text identity — NOT by
+						// position, which would mis-compare game-coords with screen-px.
+						var hideShopNodes = function(root) {
 							if(!root || !root.children) return;
 							var walk = function(node) {
 								if(!node || !node.children) return;
@@ -943,12 +1062,21 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 										var texUrl = "";
 										if(c._texture && c._texture.baseTexture && c._texture.baseTexture.imageUrl) texUrl = String(c._texture.baseTexture.imageUrl).toLowerCase();
 										if(c.texture && c.texture.baseTexture && c.texture.baseTexture.imageUrl) texUrl = String(c.texture.baseTexture.imageUrl).toLowerCase();
-										var sx = c.scale && typeof c.scale.x === "number" ? c.scale.x : 1;
-										var x = (typeof c.x === "number") ? c.x : 0;
-										var y = (typeof c.y === "number") ? c.y : 0;
-										var isRightArrowByTexture = texUrl.indexOf("shopbtn.svg") >= 0 && sx < 0 && x > 560 && y > 260 && y < 480;
-										if(isRightArrowByTexture) {
+										if(texUrl.indexOf("shoparrow") >= 0 || texUrl.indexOf("icon_shop") >= 0) {
 											disableNode(c);
+										}
+										var isShopBtn = texUrl.indexOf("shopbtn.svg") >= 0;
+										var sx = c.scale && typeof c.scale.x === "number" ? c.scale.x : 1;
+										if(isShopBtn && sx < 0) {
+											disableNode(c);
+										}
+										if(typeof c.text === "string") {
+											var t = c.text.trim().toLowerCase();
+											if(t === "shop" || t === "商店") disableNode(c);
+										}
+										if(typeof c._text === "string") {
+											var t2 = c._text.trim().toLowerCase();
+											if(t2 === "shop" || t2 === "商店") disableNode(c);
 										}
 									} catch(e) {}
 									walk(c);
@@ -956,22 +1084,188 @@ scope._jsonData['track-gma'] = {"url":"","currencies":"","itemtypes":"","channel
 							};
 							walk(root);
 						};
-						if(window.XS && window.XS.stageContainer) hideGameOverRightArrow(window.XS.stageContainer);
+						if(window.XS && window.XS.stageContainer) hideShopNodes(window.XS.stageContainer);
+
+						// Hide lingering ad-overlay DOM nodes.
+						var overlaySelectors = ['#pokiSDKAdContainer', '#pokiSdkContainer', '#gd__resume__button__overlay', '.pokiSdkContainer', '.pokiSdkVisible'];
+						for (var si = 0; si < overlaySelectors.length; si++) {
+							var nodes = document.querySelectorAll(overlaySelectors[si]);
+							for (var ni = 0; ni < nodes.length; ni++) {
+								var el = nodes[ni];
+								if (el) {
+									el.style.display = 'none';
+									el.style.pointerEvents = 'none';
+									el.style.visibility = 'hidden';
+								}
+							}
+						}
 					} catch(e) {}
+				};
+
+				// ── Input health watchdog ─────────────────────────────────────────────
+				// Monitors the PixiJS InteractionManager's event listeners and the game
+				// ball sprite's interactive state.  If something knocks them out (e.g. a
+				// WebGL context restore, a long GC pause corrupting internal state, or
+				// an accidental interactive=false from game code), re-attach / restore.
+				var ensureInputHealth = function() {
+					try {
+						var canvas = document.getElementById('gameCanvas');
+						if(!canvas) return;
+
+						// 1. Ensure PixiJS InteractionManager listeners are still bound.
+						//    When the renderer is rebuilt or the canvas is replaced, the
+						//    InteractionManager's listeners vanish.  Re-attach them by
+						//    calling setTargetDomElement if the stage is available.
+						if(window.XS && window.XS.renderer && window.XS.renderer.plugins &&
+						   window.XS.renderer.plugins.interaction) {
+							var im = window.XS.renderer.plugins.interaction;
+							if(im && im.interactionDOMElement !== canvas) {
+								im.setTargetDomElement(canvas);
+							}
+						}
+
+						// 2. Ensure stageContainer + stage interactive chain is intact.
+						if(window.XS && window.XS.stageContainer) {
+							var sc = window.XS.stageContainer;
+							if(typeof sc.interactive !== 'undefined') sc.interactive = true;
+							sc.interactiveChildren = true;
+							if(sc.children) {
+								for(var ci = 0; ci < sc.children.length; ci++) {
+									var ch = sc.children[ci];
+									if(ch) ch.interactiveChildren = true;
+								}
+							}
+						}
+
+						// 3. Force a mouseup to unstick stale drags.
+						//    Skip if a remote shot is in flight to avoid cancelling it.
+						if(window.__frvrShotInFlight && (Date.now() - window.__frvrShotInFlight) < 200) return;
+						var rect = canvas.getBoundingClientRect();
+						if(rect.width && rect.height) {
+							var bx = Math.floor(rect.left + rect.width * 0.5);
+							var by = Math.floor(rect.top + rect.height * 0.82);
+							window.dispatchEvent(new MouseEvent('mouseup', {
+								bubbles: true, cancelable: true, view: window,
+								clientX: bx, clientY: by, button: 0, buttons: 0
+							}));
+						}
+					} catch(_) {}
 				};
 				
 				var req = new XMLHttpRequest();
 				req.addEventListener('load', function(event){
+					var txt = event.target.responseText;
+					txt = txt.replace(/S\.httpPrefix\+"cdn\.frvr\.com\/config\/"/g, '"./v/1576154515838/config/"');
+					txt = txt.replace(/S\.httpPrefix\+"bucket\.frvr\.com\/config\/"/g, '"./v/1576154515838/config/"');
+				txt = txt.replace(/"cdn\.frvr\.com\/config\/"/g, '"./v/1576154515838/config/"');
+				txt = txt.replace(/"bucket\.frvr\.com\/config\/"/g, '"./v/1576154515838/config/"');
+
+				// Let k() run normally on game-over (calls G() → R=true, then
+				// u.showShopGameOver).  We override showShopGameOver at runtime
+				// to show a "✊ 握拳重新开始" overlay instead of the original modal.
+
+				// ── Fix permanent input lockout (m-flag) ──────────────────────────────
+				// PixiJS v2's XS event bridge has a module-private `m` flag that is set
+				// to true on the FIRST touch event and NEVER reset.  Once m=true:
+				//   • mousedown handler T(e) is guarded by `if(!m)` → silently skipped
+				//   • mouseup   handler R(e) is guarded by `if(!m)` → silently skipped
+				//   • mousemove handler A(e) is guarded by `if(!m)` → silently skipped
+				//   • y()/M()/L() also null out this.mousedown/mouseup per-sprite
+				// This permanently blocks ALL mouse input (including gesture-plugin
+				// shots that dispatch MouseEvent) after any real touch event.
+				//
+				// Fix: remove the m=!0 assignments and handler nullifications from the
+				// touch handlers y/M/L, and remove the m|| guard from T/R/A.
+				// Both touch and mouse events can safely coexist because the game's
+				// own "down"/"up" handlers have state guards (q||J||R) that prevent
+				// double-processing.
+				txt = txt.replace(
+					'function y(e){S.is.chromeOSDevice||(m=!0,this.mousedown=void 0),w(this,e,!1)}function T(e){m||w(this,e,!0)}',
+					'function y(e){w(this,e,!1)}function T(e){w(this,e,!0)}'
+				);
+				txt = txt.replace(
+					'function M(e){S.is.chromeOSDevice||(m=!0,this.mouseup=void 0),C(this,e,!1)}function R(e){m||C(this,e,!0)}',
+					'function M(e){C(this,e,!1)}function R(e){C(this,e,!0)}'
+				);
+				txt = txt.replace(
+					'function L(e){S.is.chromeOSDevice||(m=!0,this.mouseup=void 0),E(this,e,!1)}function A(e){m||E(this,e,!0)}',
+					'function L(e){E(this,e,!1)}function A(e){E(this,e,!0)}'
+				);
+
 					var s = document.createElement("script");
-					//s.text rather than innerHTML for ie9
-					s.text = event.target.responseText;
-					document.documentElement.appendChild(s);
-					// Keep patching for entire session because game UI is rebuilt multiple times.
-					if(window.__frvrPatchTimer) clearInterval(window.__frvrPatchTimer);
-					window.__frvrPatchTimer = setInterval(function() {
-						applyRuntimeNoAdsPatch();
+					s.text = txt;
+				document.documentElement.appendChild(s);
+
+				// Debug logging (console only, no on-screen overlay).
+				window.__dbgLog = function(msg) {
+					console.log('[FRVR-DBG]', msg);
+				};
+
+				// SDK stubs: lightweight, safe to repeat every 2s.
+				applyRuntimeNoAdsPatch();
+				if(window.__frvrPatchTimer) clearInterval(window.__frvrPatchTimer);
+				window.__frvrPatchTimer = setInterval(applyRuntimeNoAdsPatch, 2000);
+
+				// One-time UI cleanup: runs once 1s after load, then again at 4s
+				// to catch late-initializing elements. NO periodic tree walks.
+				setTimeout(applyOneTimeUICleanup, 1000);
+				setTimeout(applyOneTimeUICleanup, 4000);
+
+				// Input health watchdog: every 3s, verify event listeners and
+				// interactive flags, and unstick stale drags.
+				if(window.__frvrInputWatchdog) clearInterval(window.__frvrInputWatchdog);
+				window.__frvrInputWatchdog = setInterval(ensureInputHealth, 3000);
+
+				// ── Game-over overlay: "✊ 握拳重新开始" ──────────────────────────────
+				// Override basketball.showShopGameOver to show a minimal restart
+				// prompt instead of the original shop/modal UI.  The gesture plugin
+				// calls window.__frvrOnFist when a fist is confirmed; during game
+				// over we use that to trigger basketball.newGame().
+				(function setupGameOverOverlay() {
+					var overlay = document.createElement('div');
+					overlay.id = '__frvr_gameover';
+					overlay.style.cssText = [
+						'display:none', 'position:fixed', 'inset:0', 'z-index:999998',
+						'background:rgba(0,0,0,0.55)',
+						'justify-content:center', 'align-items:center',
+						'flex-direction:column', 'gap:18px',
+						'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
+						'pointer-events:none', 'user-select:none'
+					].join(';');
+					overlay.innerHTML =
+						'<img src="i/gesture-fist.svg" width="80" height="80" style="filter:brightness(0) invert(1);pointer-events:none" alt="">' +
+						'<div style="color:#fff;font-size:28px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.6)">握拳重新开始</div>' +
+						'<div style="color:rgba(255,255,255,0.5);font-size:16px;margin-top:4px">Make a fist to restart</div>';
+					document.body.appendChild(overlay);
+
+					function showOverlay() {
+						overlay.style.display = 'flex';
+						window.__frvrGameOverActive = true;
+						window.__frvrOnFist = function() {
+							hideOverlay();
+							if (window.basketball && typeof window.basketball.newGame === 'function') {
+								window.basketball.newGame();
+							}
+						};
+					}
+					function hideOverlay() {
+						overlay.style.display = 'none';
+						window.__frvrGameOverActive = false;
+						window.__frvrOnFist = null;
+					}
+					window.__frvrShowGameOver = showOverlay;
+					window.__frvrHideGameOver = hideOverlay;
+
+					// Poll for basketball object, then override showShopGameOver
+					var _pollBB = setInterval(function() {
+						if (!window.basketball) return;
+						clearInterval(_pollBB);
+						window.basketball.showShopGameOver = function(done) {
+							showOverlay();
+						};
 					}, 200);
-					applyRuntimeNoAdsPatch();
+				})();
+
 					// Try to load Chinese after external.js loads
 					setTimeout(tryLoadChinese, 500);
 				})

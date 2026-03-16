@@ -43,6 +43,9 @@ const Config = {
     remoteAimTtlMs: 240,
     maxWebGlRecoveries: 1,
     ultraLiteTargetFps: 8,
+    frameGapRecoveryMs: 500,
+    idleReleaseIntervalFrames: 45,
+    idleReleaseMinIdleMs: 1200,
     debug: true
 };
 
@@ -108,6 +111,7 @@ class GesturePlugin {
         this.lastAimPostAt = 0;
         this.remoteAimState = null;
         this.remoteAimUpdatedAt = 0;
+        this.idleReleaseCounter = 0;
         this.dynamic = {
             armDelayMs: Config.armDelayMs,
             minAimMovePx: Config.minAimMovePx,
@@ -120,6 +124,9 @@ class GesturePlugin {
         };
         
         this.gameCanvas = document.getElementById('gameCanvas');
+        if (this.isConsoleDebugEnabled()) {
+            console.log('[Gesture] Console debug enabled (?debugGesture=1). Logs: forceRelease, shot, longFrame, handLost, idlePeriodic, etc.');
+        }
         this.initUI();
         this.initBroadcastChannel();
         if (this.runtimeRole === 'game') {
@@ -162,6 +169,23 @@ class GesturePlugin {
         }
     }
 
+    isConsoleDebugEnabled() {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            const v = params.get('debugGesture');
+            return v === '1' || v === '2';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    logDebug(reason, data) {
+        if (!this.isConsoleDebugEnabled()) return;
+        const ts = (Date.now() / 1000).toFixed(2);
+        const payload = data != null ? (typeof data === 'object' ? JSON.stringify(data) : String(data)) : '';
+        console.log(`[Gesture ${ts}s] ${reason}${payload ? ' ' + payload : ''}`);
+    }
+
     resolveRuntimeRole() {
         try {
             const params = new URLSearchParams(window.location.search || '');
@@ -199,6 +223,10 @@ class GesturePlugin {
                 const seq = Number(data.payload.seq || 0);
                 if (seq && seq <= this.lastReceivedShotSeq) return;
                 if (seq) this.lastReceivedShotSeq = seq;
+                if (typeof window.__frvrOnFist === 'function') {
+                    try { window.__frvrOnFist(); } catch(_) {}
+                    return;
+                }
                 this.playRemoteShot(data.payload);
                 return;
             }
@@ -283,11 +311,19 @@ class GesturePlugin {
             display: 'none'
         });
         document.body.appendChild(this.statusLabel);
+
+        this.iconFist = new Image();
+        this.iconFist.src = 'i/gesture-fist.svg';
+        this.iconPalm = new Image();
+        this.iconPalm.src = 'i/gesture-palm.svg';
+        this._iconCanvas = document.createElement('canvas');
+        this._iconCtx = this._iconCanvas.getContext('2d');
         
         const resize = () => {
             if (!this.canvasElement) return;
             this.canvasElement.width = window.innerWidth;
             this.canvasElement.height = window.innerHeight;
+            this.forceReleaseGameInput(null, null, 'resize');
         };
         window.addEventListener('resize', resize);
         resize();
@@ -437,9 +473,11 @@ class GesturePlugin {
         this.ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
         const nowTs = Date.now();
         this.clearStaleShotLocks(nowTs);
-        if (this.lastResultAt > 0 && (nowTs - this.lastResultAt) > 900) {
-            // Recover from long frame gap (renderer hitch / context hiccup).
+        if (this.lastResultAt > 0 && (nowTs - this.lastResultAt) > (Config.frameGapRecoveryMs || 500)) {
+            const gap = Math.round(nowTs - this.lastResultAt);
+            this.logDebug('longFrame', { gapMs: gap });
             this.hardResetGestureState();
+            this.forceReleaseGameInput(null, null, 'longFrame:' + gap + 'ms');
         }
         this.lastResultAt = nowTs;
 
@@ -547,7 +585,11 @@ class GesturePlugin {
                     this.openAfterShotFrames = 0;
                     this.pendingFistEdge = false;
                     this.lastShotAt = Date.now();
-                    this.executeSynchronizedShot();
+                    if (typeof window.__frvrOnFist === 'function') {
+                        try { window.__frvrOnFist(); } catch(_) {}
+                    } else {
+                        this.executeSynchronizedShot();
+                    }
                 }
             }
             if (this.runtimeRole === 'camera') {
@@ -563,7 +605,17 @@ class GesturePlugin {
                 });
             }
             this.render(isPalm, isFist);
+            if (!this.isAiming && !this.isInCooldown && (nowTs - (this.lastShotAt || 0)) > (Config.idleReleaseMinIdleMs || 1200)) {
+                this.idleReleaseCounter = (this.idleReleaseCounter || 0) + 1;
+                if (this.idleReleaseCounter >= (Config.idleReleaseIntervalFrames || 45)) {
+                    this.forceReleaseGameInput(null, null, 'idlePeriodic');
+                    this.idleReleaseCounter = 0;
+                }
+            } else {
+                this.idleReleaseCounter = 0;
+            }
         } else {
+            if (this.handSeen) this.forceReleaseGameInput(null, null, 'handLost');
             this.isAiming = false;
             this.palmStartPoint = null;
             this.fistLatched = false;
@@ -691,14 +743,14 @@ class GesturePlugin {
             setTimeout(() => {
                 const endOk = this.simulateAll('end', releaseX, releaseY);
                 // Extra release pass to avoid "stuck down" in Pixi input manager.
-                this.forceReleaseGameInput(releaseX, releaseY);
+                this.forceReleaseGameInput(releaseX, releaseY, 'shotComplete');
                 this.emitRuntimeStatus({
                     shotDispatch: (startOk && moveOk && endOk) ? 'ok' : 'partial_fail',
                     dispatchStartOk: !!startOk,
                     dispatchMoveOk: !!moveOk,
                     dispatchEndOk: !!endOk
                 });
-                if (Config.debug) console.log(`🏀 Shot Final Path Sync! Force: ${currentYForce.toFixed(0)}`);
+                this.logDebug('shot', { startOk: !!startOk, moveOk: !!moveOk, endOk: !!endOk, force: Math.round(currentYForce) });
                 this.finalizeShotStateAfterDispatch();
             }, 25); 
         }, 25);
@@ -797,14 +849,16 @@ class GesturePlugin {
         const sy = rect.top + syN * rect.height;
         const ex = rect.left + exN * rect.width;
         const ey = rect.top + eyN * rect.height;
+        window.__frvrShotInFlight = Date.now();
         this.simulateReleaseSweep(sx, sy);
         const startOk = this.simulateAll('start', sx, sy);
-        if (!startOk) return;
+        if (!startOk) { window.__frvrShotInFlight = 0; return; }
         setTimeout(() => {
             this.simulateAll('move', ex, ey);
             setTimeout(() => {
                 this.simulateAll('end', ex, ey);
-                this.forceReleaseGameInput(ex, ey);
+                this.forceReleaseGameInput(ex, ey, 'remoteShotComplete');
+                window.__frvrShotInFlight = 0;
             }, 25);
         }, 25);
     }
@@ -823,6 +877,7 @@ class GesturePlugin {
         this.ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
         if (!this.remoteAimState) return;
         if ((Date.now() - this.remoteAimUpdatedAt) > Config.remoteAimTtlMs) {
+            this.forceReleaseGameInput(null, null, 'aimExpired');
             return;
         }
         const r = this.remoteAimState;
@@ -880,7 +935,7 @@ class GesturePlugin {
             changed = true;
         }
         if ((this.requireFistRelease || this.fistLatched) && elapsed > (Config.releaseLockTimeoutMs + 800)) {
-            this.forceReleaseGameInput();
+            this.forceReleaseGameInput(null, null, 'staleLock:' + Math.round(elapsed) + 'ms');
             this.requireFistRelease = false;
             this.fistLatched = false;
             changed = true;
@@ -956,10 +1011,32 @@ class GesturePlugin {
         const buttons = phase === 'end' ? 0 : 1;
         const pointerType = phase === 'start' ? 'pointerdown' : (phase === 'move' ? 'pointermove' : 'pointerup');
         const mouseType = phase === 'start' ? 'mousedown' : (phase === 'move' ? 'mousemove' : 'mouseup');
-        const touchType = phase === 'start' ? 'touchstart' : (phase === 'move' ? 'touchmove' : 'touchend');
         const commonBubbles = { bubbles: true, cancelable: true, view: window };
 
         const recipients = this.getDispatchRecipients(target);
+
+        // PixiJS v2's onMouseDown / onMouseUp do NOT read clientX/Y from the event
+        // itself — both rely on mouse.global, which is only updated by onMouseMove.
+        //
+        // 'start' pre-move: primes mouse.global to ball position so the hit-test in
+        //   onMouseDown finds the ball and sets $.x/$.y at the correct drag origin.
+        //
+        // 'end' pre-move: re-asserts mouse.global at the release position just before
+        //   the mouseup fires.  Without this, anything that dispatched a mousemove
+        //   between our 'move' and 'end' calls (e.g. forceReleaseGameInput triggered
+        //   by a long-frame event) would leave mouse.global at ball position — ie()
+        //   would then see zero drag delta and silently skip the throw, leaving
+        //   J=true until the game's own 500ms XS.setTimeout safety timer fires ne().
+        if (phase === 'start' || phase === 'end') {
+            this.dispatchToRecipients(recipients, () => new MouseEvent('mousemove', {
+                clientX,
+                clientY,
+                ...commonBubbles,
+                button: 0,
+                buttons: phase === 'start' ? 1 : 0
+            }));
+        }
+
         if (typeof window.PointerEvent === 'function') {
             diag.pointerDispatches = this.dispatchToRecipients(recipients, () => new PointerEvent(pointerType, {
                 clientX,
@@ -981,27 +1058,10 @@ class GesturePlugin {
             buttons
         }));
 
-        // Keep legacy touch path for old game input handlers.
-        try {
-            if (typeof window.Touch === 'function' && typeof window.TouchEvent === 'function') {
-                const touchPoint = new Touch({
-                    identifier: 1,
-                    target,
-                    clientX,
-                    clientY,
-                    pageX: clientX,
-                    pageY: clientY,
-                    screenX: clientX,
-                    screenY: clientY
-                });
-                diag.touchDispatches = this.dispatchToRecipients(recipients, () => new TouchEvent(touchType, {
-                    ...commonBubbles,
-                    touches: phase === 'end' ? [] : [touchPoint],
-                    targetTouches: phase === 'end' ? [] : [touchPoint],
-                    changedTouches: [touchPoint]
-                }));
-            }
-        } catch(e) {}
+        // TouchEvent dispatch intentionally omitted: the PixiJS InteractionManager sets a
+        // module-private `m` flag to true on the first touchstart and thereafter blocks all
+        // mousedown events permanently. Dispatching only PointerEvent + MouseEvent keeps `m`
+        // false so both gesture and mouse shots work for the entire session.
         this.lastDispatchDiag = diag;
         const success = (diag.pointerDispatches + diag.mouseDispatches + diag.touchDispatches) > 0;
         if (!success) {
@@ -1035,7 +1095,7 @@ class GesturePlugin {
         // that missed a previous "end" event during a freeze.
         this.simulateAll('end', x, y);
         this.simulateAll('end', x, y);
-        this.forceReleaseGameInput(x, y);
+        this.forceReleaseGameInput(x, y, 'releaseSweep');
     }
 
     emitRuntimeStatus(extra = {}) {
@@ -1063,64 +1123,63 @@ class GesturePlugin {
         } catch (_) {}
     }
 
-    forceReleaseGameInput(x, y) {
+    forceReleaseGameInput(x, y, reason) {
+        if (reason) this.logDebug('forceRelease', reason);
         let target = this.getGameCanvas();
-        if (!target) return;
+        if (!target) {
+            if (reason) this.logDebug('forceRelease skip', 'no gameCanvas');
+            return;
+        }
         const rect = target.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
+        if (!rect.width || !rect.height) {
+            if (reason) this.logDebug('forceRelease skip', 'invalid rect ' + rect.width + 'x' + rect.height);
+            return;
+        }
+        // When no explicit coordinates are provided (unexpected cancels: longFrame, handLost,
+        // idlePeriodic, etc.) default to the ball's resting position rather than the canvas
+        // centre.  This is critical: if we release at canvas centre while J=true (drag in
+        // progress), PixiJS's ie() computes an upward drag vector from ball (82 %) to centre
+        // (50 %) and silently fires an accidental throw, which (a) causes the trajectory to
+        // flicker, and (b) leaves q=true until the ball falls off-screen — blocking the next
+        // intentional shot.  Releasing at ball position gives delta=0 → c=0 → c<0 fails →
+        // no throw; ie() returns undefined and the drag is cleanly cancelled via ne()+J=false.
         const clientX = typeof x === 'number'
             ? Math.min(rect.right - 1, Math.max(rect.left + 1, x))
-            : Math.floor(rect.left + rect.width * 0.5);
+            : Math.floor(rect.left + rect.width * Config.ballStartPos.x);
         const clientY = typeof y === 'number'
             ? Math.min(rect.bottom - 1, Math.max(rect.top + 1, y))
-            : Math.floor(rect.top + rect.height * 0.5);
+            : Math.floor(rect.top + rect.height * Config.ballStartPos.y);
         const recipients = this.getDispatchRecipients(target);
         const common = { bubbles: true, cancelable: true, view: window, clientX, clientY };
 
+        // Do NOT dispatch a mousemove here.
+        //
+        // Sending mousemove when J=true (drag in progress) triggers ie() in the game
+        // engine, which visually snaps the ball back to its resting position — that is
+        // the "parabola flicker" the user sees.  PixiJS's onMouseUp does NOT read
+        // clientX/Y from the event; it always uses the last mouse.global set by
+        // onMouseMove.  So the mouseup below will use whatever mouse.global was last
+        // set by an actual mousemove, which means:
+        //   • J=false → ie() returns early (J&&!q is false) → ne()+J=false (safe).
+        //   • J=true, cursor above start  → ie() may throw the ball — that is fine,
+        //     the ball resets via V()→B() and gameplay continues.
+        //   • J=true, cursor at/below start → c≥0 → no throw → ne()+J=false (safe).
+        // In all cases there is no ball visual snap, eliminating the flicker.
+
         if (typeof window.PointerEvent === 'function') {
             this.dispatchToRecipients(recipients, () => new PointerEvent('pointercancel', {
-                ...common, button: 0, buttons: 0, isPrimary: true, pointerId: 1, pointerType: 'touch'
+                ...common, button: 0, buttons: 0, isPrimary: true, pointerId: 1, pointerType: 'mouse'
             }));
             this.dispatchToRecipients(recipients, () => new PointerEvent('pointerup', {
-                ...common, button: 0, buttons: 0, isPrimary: true, pointerId: 1, pointerType: 'touch'
+                ...common, button: 0, buttons: 0, isPrimary: true, pointerId: 1, pointerType: 'mouse'
             }));
         }
         this.dispatchToRecipients(recipients, () => new MouseEvent('mouseup', {
             ...common, button: 0, buttons: 0
         }));
-        this.dispatchToRecipients(recipients, () => new MouseEvent('mousemove', {
-            ...common, button: 0, buttons: 0
-        }));
-        try {
-            if (typeof window.Touch === 'function' && typeof window.TouchEvent === 'function') {
-                const touchPoint = new Touch({
-                    identifier: 1,
-                    target,
-                    clientX,
-                    clientY,
-                    pageX: clientX,
-                    pageY: clientY,
-                    screenX: clientX,
-                    screenY: clientY
-                });
-                this.dispatchToRecipients(recipients, () => new TouchEvent('touchcancel', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                    touches: [],
-                    targetTouches: [],
-                    changedTouches: [touchPoint]
-                }));
-                this.dispatchToRecipients(recipients, () => new TouchEvent('touchend', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                    touches: [],
-                    targetTouches: [],
-                    changedTouches: [touchPoint]
-                }));
-            }
-        } catch (_) {}
+        // TouchEvent (touchcancel/touchend) dispatch removed: these trigger the PixiJS
+        // InteractionManager's M() handler which sets the module-private m=!0 flag AND
+        // nullifies o.mouseup, permanently blocking all subsequent mouse input until page reload.
     }
 
     render(isPalm, isFist) {
@@ -1136,16 +1195,51 @@ class GesturePlugin {
     }
 
     drawAimOverlay(params) {
-        const color = params.isInCooldown ? 'rgba(255,255,255,0.3)' : (params.isFist ? '#ffcc00' : (params.isPalm ? '#00fbff' : '#ffffff'));
-        this.drawGlowPoint(params.palmPoint.x, params.palmPoint.y, 10, color);
         if (params.isAiming && !params.isInCooldown) {
             const bx = this.canvasElement.width * Config.ballStartPos.x;
             const by = this.canvasElement.height * Config.ballStartPos.y;
-            this.ctx.fillStyle = '#00fbff';
-            this.ctx.font = 'bold 20px Arial';
-            this.ctx.fillText(params.isFist ? '✊ 触发投篮' : (params.isPalm ? '🖐 手掌瞄准' : '✋ 调整手势'), params.palmPoint.x + 25, params.palmPoint.y + 10);
+            const ix = params.palmPoint.x + 25;
+            const iy = params.palmPoint.y + 10;
+            if (params.isFist) {
+                this.drawFistIcon(ix - 20, iy - 14, 18, '#ffcc00');
+                this.ctx.fillStyle = '#ffcc00';
+                this.ctx.font = 'bold 18px Arial';
+                this.ctx.fillText('触发投篮', ix + 4, iy + 6);
+            } else if (params.isPalm) {
+                this.drawPalmIcon(ix - 20, iy - 14, 18, '#00fbff');
+                this.ctx.fillStyle = '#00fbff';
+                this.ctx.font = 'bold 18px Arial';
+                this.ctx.fillText('手掌瞄准', ix + 4, iy + 6);
+            } else {
+                this.drawPalmIcon(ix - 20, iy - 14, 18, '#ffffff');
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = 'bold 18px Arial';
+                this.ctx.fillText('调整手掌进行瞄准', ix + 4, iy + 6);
+            }
             this.drawVectorParabola(bx, by, params.shot.deltaX, params.shot.currentYForce);
         }
+    }
+
+    drawTintedIcon(img, x, y, size, color) {
+        if (!img || !img.complete || !img.naturalWidth) return;
+        const oc = this._iconCtx;
+        this._iconCanvas.width = size;
+        this._iconCanvas.height = size;
+        oc.clearRect(0, 0, size, size);
+        oc.drawImage(img, 0, 0, size, size);
+        oc.globalCompositeOperation = 'source-in';
+        oc.fillStyle = color;
+        oc.fillRect(0, 0, size, size);
+        oc.globalCompositeOperation = 'source-over';
+        this.ctx.drawImage(this._iconCanvas, x, y);
+    }
+
+    drawFistIcon(x, y, size, color) {
+        this.drawTintedIcon(this.iconFist, x, y, size, color);
+    }
+
+    drawPalmIcon(x, y, size, color) {
+        this.drawTintedIcon(this.iconPalm, x, y, size, color);
     }
 
     drawGlowPoint(x, y, r, color) {

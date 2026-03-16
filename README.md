@@ -90,13 +90,39 @@ basketball-frvr/
 
 1. **CORS 问题**: 某些第三方脚本可能因为 CORS 策略无法加载，这是正常的
 2. **分析脚本**: 项目包含 Google Analytics 等分析脚本，本地运行时可能无法正常工作
-3. **第三方 SDK**: Poki SDK 等第三方服务需要网络连接和有效的 API 密钥
+3. **广告已移除**: 主入口使用无广告版 PokiSDK 桩（`patch/poki-sdk.js`），不加载任何广告 SDK
 
 ## 开发建议
 
 - 使用浏览器开发者工具（F12）查看控制台错误
 - 检查 Network 标签页确认资源加载情况
 - 游戏核心代码在 `v/1576154515838/external.js` 中
+
+### 手势调试（投篮失效排查）
+
+在 URL 添加 `?debugGesture=1` 启用控制台调试输出，例如：
+
+```
+http://localhost:8000/index.html?debugGesture=1
+```
+
+控制台会输出：
+- `forceRelease`：每次释放 pointer 的原因（longFrame、handLost、resize、idlePeriodic、aimExpired、staleLock、shotComplete 等）
+- `shot`：每次投篮的 dispatch 结果（startOk、moveOk、endOk）
+- 问题复现时，可查看最后几条日志以定位触发条件
+
+## 无广告模式
+
+项目已配置为本地无广告运行：
+
+- **本地配置**：`v/1576154515838/config/basketball.v3.json` 提供无广告配置（`showInterstitial: false`、`providers: []`）
+- **external.js 已打补丁**：配置请求从远程改为本地路径
+- **PokiSDK 桩**：`patch/poki-sdk.js` 提供无广告桩实现
+- **运行时补丁**：`applyRuntimeNoAdsPatch` 覆盖 `showInterstitial`、`showInterstitialAd` 等
+
+若仍出现广告，可检查：
+1. 控制台是否还有 `cdn.frvr.com/config` 或 `bucket.frvr.com/config` 请求
+2. 是否出现 `Ads: Loading XS-ads.js`（表示配置未生效）
 
 ## 故障排除
 
@@ -147,7 +173,7 @@ bash scripts/dev-start.sh
 - 本地静态服务：`http://127.0.0.1:8000`
 
 常用参数示例：
-
+  
 ```bash
 HTTP_PORT=8000 bash scripts/dev-start.sh
 ```
