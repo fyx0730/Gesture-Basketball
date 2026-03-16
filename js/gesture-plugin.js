@@ -1206,13 +1206,13 @@ class GesturePlugin {
                 this.ctx.font = 'bold 18px Arial';
                 this.ctx.fillText('触发投篮', ix + 4, iy + 6);
             } else if (params.isPalm) {
-                this.drawPalmIcon(ix - 20, iy - 14, 18, '#00fbff');
-                this.ctx.fillStyle = '#00fbff';
+                this.drawPalmIcon(ix - 20, iy - 14, 18, '#ff9999');
+                this.ctx.fillStyle = '#ff9999';
                 this.ctx.font = 'bold 18px Arial';
                 this.ctx.fillText('手掌瞄准', ix + 4, iy + 6);
             } else {
-                this.drawPalmIcon(ix - 20, iy - 14, 18, '#ffffff');
-                this.ctx.fillStyle = '#ffffff';
+                this.drawPalmIcon(ix - 20, iy - 14, 18, '#ff9999');
+                this.ctx.fillStyle = '#ff9999';
                 this.ctx.font = 'bold 18px Arial';
                 this.ctx.fillText('调整手掌进行瞄准', ix + 4, iy + 6);
             }
